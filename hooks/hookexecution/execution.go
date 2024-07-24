@@ -103,6 +103,14 @@ func executeHook[H any, P any](
 	hookId := HookID{ModuleCode: hw.Module, HookImplCode: hw.Code}
 
 	go func() {
+		defer func() {
+			if r := recover(); r != nil {
+				hookRespCh <- hookResponse[P]{
+					Result: hookstage.HookResult[P]{},
+					Err:    NewFailure("%v", r),
+				}
+			}
+		}()
 		ctx, cancel := context.WithTimeout(context.Background(), timeout)
 		defer cancel()
 		result, err := hookHandler(ctx, moduleCtx, hw.Hook, payload)

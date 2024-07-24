@@ -385,3 +385,33 @@ func (e mockUpdateBidResponseHook) HandleAuctionResponseHook(_ context.Context, 
 
 	return hookstage.HookResult[hookstage.AuctionResponsePayload]{ChangeSet: c}, nil
 }
+
+type mockPanicHook struct{}
+
+func (e mockPanicHook) HandleEntrypointHook(_ context.Context, _ hookstage.ModuleInvocationContext, _ hookstage.EntrypointPayload) (hookstage.HookResult[hookstage.EntrypointPayload], error) {
+	panic("hook panic")
+}
+
+func (e mockPanicHook) HandleRawAuctionHook(_ context.Context, _ hookstage.ModuleInvocationContext, _ hookstage.RawAuctionRequestPayload) (hookstage.HookResult[hookstage.RawAuctionRequestPayload], error) {
+	panic("hook panic")
+}
+
+func (e mockPanicHook) HandleProcessedAuctionHook(_ context.Context, _ hookstage.ModuleInvocationContext, _ hookstage.ProcessedAuctionRequestPayload) (hookstage.HookResult[hookstage.ProcessedAuctionRequestPayload], error) {
+	panic("hook panic")
+}
+
+func (e mockPanicHook) HandleBidderRequestHook(_ context.Context, _ hookstage.ModuleInvocationContext, _ hookstage.BidderRequestPayload) (hookstage.HookResult[hookstage.BidderRequestPayload], error) {
+	panic("hook panic")
+}
+
+func (e mockPanicHook) HandleRawBidderResponseHook(_ context.Context, _ hookstage.ModuleInvocationContext, _ hookstage.RawBidderResponsePayload) (hookstage.HookResult[hookstage.RawBidderResponsePayload], error) {
+	panic("hook panic")
+}
+
+func (e mockPanicHook) HandleAllProcessedBidResponsesHook(_ context.Context, _ hookstage.ModuleInvocationContext, _ hookstage.AllProcessedBidResponsesPayload) (hookstage.HookResult[hookstage.AllProcessedBidResponsesPayload], error) {
+	panic("hook panic")
+}
+
+func (e mockPanicHook) HandleAuctionResponseHook(_ context.Context, _ hookstage.ModuleInvocationContext, _ hookstage.AuctionResponsePayload) (hookstage.HookResult[hookstage.AuctionResponsePayload], error) {
+	panic("hook panic")
+}

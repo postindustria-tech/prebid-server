@@ -349,6 +349,30 @@ func TestExecuteEntrypointStage(t *testing.T) {
 				},
 			},
 		},
+		{
+			description:            "Hook execution panic recovery",
+			givenBody:              body,
+			givenUrl:               urlString,
+			givenPlanBuilder:       TestHookPanic{},
+			expectedBody:           body,
+			expectedHeader:         http.Header{},
+			expectedQuery:          url.Values{},
+			expectedReject:         nil,
+			expectedModuleContexts: foobarModuleCtx,
+			expectedStageOutcomes: []StageOutcome{
+				{
+					Entity: entityHttpRequest,
+					Stage:  hooks.StageEntrypoint.String(),
+					Groups: []GroupOutcome{
+						{
+							InvocationResults: []HookOutcome{
+								PanicHookOutcome(),
+							},
+						},
+					},
+				},
+			},
+		},
 	}
 
 	for _, test := range testCases {
@@ -663,6 +687,28 @@ func TestExecuteRawAuctionStage(t *testing.T) {
 				},
 			},
 		},
+		{
+			description:            "Hook execution panic recovery",
+			givenBody:              body,
+			givenUrl:               urlString,
+			givenPlanBuilder:       TestHookPanic{},
+			expectedBody:           body,
+			expectedReject:         nil,
+			expectedModuleContexts: foobarModuleCtx,
+			expectedStageOutcomes: []StageOutcome{
+				{
+					Entity: entityAuctionRequest,
+					Stage:  hooks.StageRawAuctionRequest.String(),
+					Groups: []GroupOutcome{
+						{
+							InvocationResults: []HookOutcome{
+								PanicHookOutcome(),
+							},
+						},
+					},
+				},
+			},
+		},
 	}
 
 	for _, test := range testCases {
@@ -875,6 +921,27 @@ func TestExecuteProcessedAuctionStage(t *testing.T) {
 									Errors:        nil,
 									Warnings:      nil,
 								},
+							},
+						},
+					},
+				},
+			},
+		},
+		{
+			description:            "Hook execution panic recovery",
+			givenPlanBuilder:       TestHookPanic{},
+			givenRequest:           openrtb_ext.RequestWrapper{BidRequest: &req},
+			expectedRequest:        req,
+			expectedErr:            nil,
+			expectedModuleContexts: foobarModuleCtx,
+			expectedStageOutcomes: []StageOutcome{
+				{
+					Entity: entityAuctionRequest,
+					Stage:  hooks.StageProcessedAuctionRequest.String(),
+					Groups: []GroupOutcome{
+						{
+							InvocationResults: []HookOutcome{
+								PanicHookOutcome(),
 							},
 						},
 					},
@@ -1151,6 +1218,27 @@ func TestExecuteBidderRequestStage(t *testing.T) {
 				},
 			},
 		},
+		{
+			description:            "Hook execution panic recovery",
+			givenBidderRequest:     &openrtb2.BidRequest{ID: "some-id", User: &openrtb2.User{ID: "user-id"}},
+			givenPlanBuilder:       TestHookPanic{},
+			expectedBidderRequest:  expectedBidderRequest,
+			expectedReject:         nil,
+			expectedModuleContexts: foobarModuleCtx,
+			expectedStageOutcomes: []StageOutcome{
+				{
+					Entity: entity(bidderName),
+					Stage:  hooks.StageBidderRequest.String(),
+					Groups: []GroupOutcome{
+						{
+							InvocationResults: []HookOutcome{
+								PanicHookOutcome(),
+							},
+						},
+					},
+				},
+			},
+		},
 	}
 
 	for _, test := range testCases {
@@ -1401,6 +1489,27 @@ func TestExecuteRawBidderResponseStage(t *testing.T) {
 									Errors:        nil,
 									Warnings:      nil,
 								},
+							},
+						},
+					},
+				},
+			},
+		},
+		{
+			description:            "Hook execution panic recovery",
+			givenPlanBuilder:       TestHookPanic{},
+			givenBidderResponse:    resp,
+			expectedBidderResponse: expResp,
+			expectedReject:         nil,
+			expectedModuleContexts: foobarModuleCtx,
+			expectedStageOutcomes: []StageOutcome{
+				{
+					Entity: vEntity,
+					Stage:  hooks.StageRawBidderResponse.String(),
+					Groups: []GroupOutcome{
+						{
+							InvocationResults: []HookOutcome{
+								PanicHookOutcome(),
 							},
 						},
 					},
@@ -1682,6 +1791,29 @@ func TestExecuteAllProcessedBidResponsesStage(t *testing.T) {
 				},
 			},
 		},
+		{
+			description: "Hook execution panic recovery",
+			givenBiddersResponse: map[openrtb_ext.BidderName]*entities.PbsOrtbSeatBid{
+				"some-bidder": {Bids: []*entities.PbsOrtbBid{{DealPriority: 1}}},
+			},
+			givenPlanBuilder:        TestHookPanic{},
+			expectedBiddersResponse: expectedAllProcBidResponses,
+			expectedReject:          nil,
+			expectedModuleContexts:  foobarModuleCtx,
+			expectedStageOutcomes: []StageOutcome{
+				{
+					Entity: entityAllProcessedBidResponses,
+					Stage:  hooks.StageAllProcessedBidResponses.String(),
+					Groups: []GroupOutcome{
+						{
+							InvocationResults: []HookOutcome{
+								PanicHookOutcome(),
+							},
+						},
+					},
+				},
+			},
+		},
 	}
 
 	for _, test := range testCases {
@@ -1921,6 +2053,27 @@ func TestExecuteAuctionResponseStage(t *testing.T) {
 									Errors:        nil,
 									Warnings:      nil,
 								},
+							},
+						},
+					},
+				},
+			},
+		},
+		{
+			description:            "Hook execution panic recovery",
+			givenPlanBuilder:       TestHookPanic{},
+			givenResponse:          resp,
+			expectedResponse:       expResp,
+			expectedReject:         nil,
+			expectedModuleContexts: foobarModuleCtx,
+			expectedStageOutcomes: []StageOutcome{
+				{
+					Entity: entityAuctionResponse,
+					Stage:  hooks.StageAuctionResponse.String(),
+					Groups: []GroupOutcome{
+						{
+							InvocationResults: []HookOutcome{
+								PanicHookOutcome(),
 							},
 						},
 					},
@@ -2610,5 +2763,99 @@ func (e TestAllHookResultsBuilder) PlanForEntrypointStage(_ string) hooks.Plan[h
 				{Module: "module.x-1", Code: "code-2", Hook: mockRejectHook{}},
 			},
 		},
+	}
+}
+
+type TestHookPanic struct {
+	hooks.EmptyPlanBuilder
+}
+
+func (e TestHookPanic) PlanForEntrypointStage(_ string) hooks.Plan[hookstage.Entrypoint] {
+	return hooks.Plan[hookstage.Entrypoint]{
+		hooks.Group[hookstage.Entrypoint]{
+			Timeout: 10 * time.Millisecond,
+			Hooks: []hooks.HookWrapper[hookstage.Entrypoint]{
+				{Module: "foobar", Code: "foo", Hook: mockPanicHook{}},
+			},
+		},
+	}
+}
+
+func (e TestHookPanic) PlanForRawAuctionStage(_ string, _ *config.Account) hooks.Plan[hookstage.RawAuctionRequest] {
+	return hooks.Plan[hookstage.RawAuctionRequest]{
+		hooks.Group[hookstage.RawAuctionRequest]{
+			Timeout: 10 * time.Millisecond,
+			Hooks: []hooks.HookWrapper[hookstage.RawAuctionRequest]{
+				{Module: "foobar", Code: "foo", Hook: mockPanicHook{}},
+			},
+		},
+	}
+}
+
+func (e TestHookPanic) PlanForProcessedAuctionStage(_ string, _ *config.Account) hooks.Plan[hookstage.ProcessedAuctionRequest] {
+	return hooks.Plan[hookstage.ProcessedAuctionRequest]{
+		hooks.Group[hookstage.ProcessedAuctionRequest]{
+			Timeout: 10 * time.Millisecond,
+			Hooks: []hooks.HookWrapper[hookstage.ProcessedAuctionRequest]{
+				{Module: "foobar", Code: "foo", Hook: mockPanicHook{}},
+			},
+		},
+	}
+}
+
+func (e TestHookPanic) PlanForBidderRequestStage(_ string, _ *config.Account) hooks.Plan[hookstage.BidderRequest] {
+	return hooks.Plan[hookstage.BidderRequest]{
+		hooks.Group[hookstage.BidderRequest]{
+			Timeout: 10 * time.Millisecond,
+			Hooks: []hooks.HookWrapper[hookstage.BidderRequest]{
+				{Module: "foobar", Code: "foo", Hook: mockPanicHook{}},
+			},
+		},
+	}
+}
+
+func (e TestHookPanic) PlanForRawBidderResponseStage(_ string, _ *config.Account) hooks.Plan[hookstage.RawBidderResponse] {
+	return hooks.Plan[hookstage.RawBidderResponse]{
+		hooks.Group[hookstage.RawBidderResponse]{
+			Timeout: 10 * time.Millisecond,
+			Hooks: []hooks.HookWrapper[hookstage.RawBidderResponse]{
+				{Module: "foobar", Code: "foo", Hook: mockPanicHook{}},
+			},
+		},
+	}
+}
+
+func (e TestHookPanic) PlanForAllProcessedBidResponsesStage(_ string, _ *config.Account) hooks.Plan[hookstage.AllProcessedBidResponses] {
+	return hooks.Plan[hookstage.AllProcessedBidResponses]{
+		hooks.Group[hookstage.AllProcessedBidResponses]{
+			Timeout: 10 * time.Millisecond,
+			Hooks: []hooks.HookWrapper[hookstage.AllProcessedBidResponses]{
+				{Module: "foobar", Code: "foo", Hook: mockPanicHook{}},
+			},
+		},
+	}
+}
+
+func (e TestHookPanic) PlanForAuctionResponseStage(_ string, _ *config.Account) hooks.Plan[hookstage.AuctionResponse] {
+	return hooks.Plan[hookstage.AuctionResponse]{
+		hooks.Group[hookstage.AuctionResponse]{
+			Timeout: 1 * time.Millisecond,
+			Hooks: []hooks.HookWrapper[hookstage.AuctionResponse]{
+				{Module: "foobar", Code: "foo", Hook: mockPanicHook{}},
+			},
+		},
+	}
+}
+
+func PanicHookOutcome() HookOutcome {
+	return HookOutcome{
+		AnalyticsTags: hookanalytics.Analytics{},
+		HookID:        HookID{ModuleCode: "foobar", HookImplCode: "foo"},
+		Status:        StatusFailure,
+		Action:        "",
+		Message:       "",
+		DebugMessages: nil,
+		Errors:        []string{"hook execution failed: hook panics"},
+		Warnings:      nil,
 	}
 }
