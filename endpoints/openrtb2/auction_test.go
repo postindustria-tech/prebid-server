@@ -2730,7 +2730,7 @@ func TestCurrencyTrunc(t *testing.T) {
 
 	errL := deps.validateRequest(nil, nil, &openrtb_ext.RequestWrapper{BidRequest: &req}, false, false, nil, false)
 
-	expectedError := errortypes.Warning{Message: "A prebid request can only process one currency. Taking the first currency in the list, USD, as the active currency"}
+	expectedError := errortypes.Warning{Message: "A single currency (USD) has been chosen for the request. ORTB 2.6 requires that all responses are in the same currency."}
 	assert.ElementsMatch(t, errL, []error{&expectedError})
 }
 

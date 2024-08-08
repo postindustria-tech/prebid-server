@@ -773,7 +773,7 @@ func (deps *endpointDeps) validateRequest(account *config.Account, httpReq *http
 
 	if len(req.Cur) > 1 {
 		req.Cur = req.Cur[0:1]
-		errL = append(errL, &errortypes.Warning{Message: fmt.Sprintf("A prebid request can only process one currency. Taking the first currency in the list, %s, as the active currency", req.Cur[0])})
+		errL = append(errL, &errortypes.Warning{Message: fmt.Sprintf("A single currency (%s) has been chosen for the request. ORTB 2.6 requires that all responses are in the same currency.", req.Cur[0])})
 	}
 
 	// If automatically filling source TID is enabled then validate that
