@@ -11,6 +11,7 @@ import (
 	"net/http/httptest"
 	"os"
 	"strconv"
+	"sync"
 	"testing"
 	"time"
 
@@ -1011,6 +1012,7 @@ type mockAdapter struct {
 	Server        config.Server
 	seat          string
 	requestData   [][]byte
+	mu            sync.Mutex
 }
 
 func Builder(bidderName openrtb_ext.BidderName, config config.Adapter, server config.Server) (adapters.Bidder, error) {
@@ -1041,7 +1043,10 @@ func (a *mockAdapter) MakeRequests(request *openrtb2.BidRequest, requestInfo *ad
 			Body:   requestJSON,
 		}
 		requests = append(requests, requestData)
+
+		a.mu.Lock()
 		a.requestData = append(a.requestData, requestData.Body)
+		a.mu.Unlock()
 	}
 	return requests, errors
 }
