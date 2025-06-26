@@ -219,13 +219,43 @@ func (e mockModuleContextHook) HandleAuctionResponseHook(_ context.Context, miCt
 	return hookstage.HookResult[hookstage.AuctionResponsePayload]{ModuleContext: miCtx.ModuleContext}, nil
 }
 
+type mockModuleABHook struct{}
+
+func (e mockModuleABHook) HandleEntrypointHook(_ context.Context, miCtx hookstage.ModuleInvocationContext, _ hookstage.EntrypointPayload) (hookstage.HookResult[hookstage.EntrypointPayload], error) {
+	return hookstage.HookResult[hookstage.EntrypointPayload]{ModuleContext: miCtx.ModuleContext}, nil
+}
+
+func (e mockModuleABHook) HandleRawAuctionHook(_ context.Context, miCtx hookstage.ModuleInvocationContext, _ hookstage.RawAuctionRequestPayload) (hookstage.HookResult[hookstage.RawAuctionRequestPayload], error) {
+	return hookstage.HookResult[hookstage.RawAuctionRequestPayload]{ModuleContext: miCtx.ModuleContext}, nil
+}
+
+func (e mockModuleABHook) HandleProcessedAuctionHook(_ context.Context, miCtx hookstage.ModuleInvocationContext, _ hookstage.ProcessedAuctionRequestPayload) (hookstage.HookResult[hookstage.ProcessedAuctionRequestPayload], error) {
+	return hookstage.HookResult[hookstage.ProcessedAuctionRequestPayload]{ModuleContext: miCtx.ModuleContext}, nil
+}
+
+func (e mockModuleABHook) HandleBidderRequestHook(_ context.Context, miCtx hookstage.ModuleInvocationContext, _ hookstage.BidderRequestPayload) (hookstage.HookResult[hookstage.BidderRequestPayload], error) {
+	return hookstage.HookResult[hookstage.BidderRequestPayload]{ModuleContext: miCtx.ModuleContext}, nil
+}
+
+func (e mockModuleABHook) HandleRawBidderResponseHook(_ context.Context, miCtx hookstage.ModuleInvocationContext, _ hookstage.RawBidderResponsePayload) (hookstage.HookResult[hookstage.RawBidderResponsePayload], error) {
+	return hookstage.HookResult[hookstage.RawBidderResponsePayload]{ModuleContext: miCtx.ModuleContext}, nil
+}
+
+func (e mockModuleABHook) HandleAllProcessedBidResponsesHook(_ context.Context, miCtx hookstage.ModuleInvocationContext, _ hookstage.AllProcessedBidResponsesPayload) (hookstage.HookResult[hookstage.AllProcessedBidResponsesPayload], error) {
+	return hookstage.HookResult[hookstage.AllProcessedBidResponsesPayload]{ModuleContext: miCtx.ModuleContext}, nil
+}
+
+func (e mockModuleABHook) HandleAuctionResponseHook(_ context.Context, miCtx hookstage.ModuleInvocationContext, _ hookstage.AuctionResponsePayload) (hookstage.HookResult[hookstage.AuctionResponsePayload], error) {
+	return hookstage.HookResult[hookstage.AuctionResponsePayload]{ModuleContext: miCtx.ModuleContext}, nil
+}
+
 type mockFailureHook struct{}
 
 func (h mockFailureHook) HandleEntrypointHook(_ context.Context, _ hookstage.ModuleInvocationContext, _ hookstage.EntrypointPayload) (hookstage.HookResult[hookstage.EntrypointPayload], error) {
 	return hookstage.HookResult[hookstage.EntrypointPayload]{}, FailureError{Message: "attribute not found"}
 }
 
-func (h mockFailureHook) HandleRawAuctionHook(_ context.Context, miCtx hookstage.ModuleInvocationContext, _ hookstage.RawAuctionRequestPayload) (hookstage.HookResult[hookstage.RawAuctionRequestPayload], error) {
+func (h mockFailureHook) HandleRawAuctionHook(_ context.Context, _ hookstage.ModuleInvocationContext, _ hookstage.RawAuctionRequestPayload) (hookstage.HookResult[hookstage.RawAuctionRequestPayload], error) {
 	return hookstage.HookResult[hookstage.RawAuctionRequestPayload]{}, FailureError{Message: "attribute not found"}
 }
 
@@ -255,7 +285,7 @@ func (h mockErrorHook) HandleAllProcessedBidResponsesHook(_ context.Context, _ h
 	return hookstage.HookResult[hookstage.AllProcessedBidResponsesPayload]{}, errors.New("unexpected error")
 }
 
-func (h mockErrorHook) HandleAuctionResponseHook(_ context.Context, miCtx hookstage.ModuleInvocationContext, _ hookstage.AuctionResponsePayload) (hookstage.HookResult[hookstage.AuctionResponsePayload], error) {
+func (h mockErrorHook) HandleAuctionResponseHook(_ context.Context, _ hookstage.ModuleInvocationContext, _ hookstage.AuctionResponsePayload) (hookstage.HookResult[hookstage.AuctionResponsePayload], error) {
 	return hookstage.HookResult[hookstage.AuctionResponsePayload]{}, errors.New("unexpected error")
 }
 
@@ -270,7 +300,7 @@ func (h mockFailedMutationHook) HandleEntrypointHook(_ context.Context, _ hookst
 	return hookstage.HookResult[hookstage.EntrypointPayload]{ChangeSet: changeSet}, nil
 }
 
-func (h mockFailedMutationHook) HandleRawAuctionHook(_ context.Context, miCtx hookstage.ModuleInvocationContext, _ hookstage.RawAuctionRequestPayload) (hookstage.HookResult[hookstage.RawAuctionRequestPayload], error) {
+func (h mockFailedMutationHook) HandleRawAuctionHook(_ context.Context, _ hookstage.ModuleInvocationContext, _ hookstage.RawAuctionRequestPayload) (hookstage.HookResult[hookstage.RawAuctionRequestPayload], error) {
 	changeSet := hookstage.ChangeSet[hookstage.RawAuctionRequestPayload]{}
 	changeSet.AddMutation(func(payload hookstage.RawAuctionRequestPayload) (hookstage.RawAuctionRequestPayload, error) {
 		return payload, errors.New("key not found")
