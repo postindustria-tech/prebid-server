@@ -376,34 +376,21 @@ func sendAuctionResponse(
 		}
 	}
 
-	res, headers, err := hookExecutor.ExecuteExitPointStage(request, response)
-	if err != nil {
-		labels.RequestStatus = metrics.RequestStatusNetworkErr
-		ao.Errors = append(ao.Errors, fmt.Errorf("/openrtb2/auction Failed to ExecuteExitPointStage: %w", err))
-	}
-
 	w.Header().Set("Content-Type", "application/json")
-	if headers != nil {
-		for key, vals := range headers {
-			for i, val := range vals {
-				if i == 0 {
-					// overwrite existing setting
-					w.Header().Set(key, val)
-				} else {
-					// add additional values to existing key
-					w.Header().Add(key, val)
-				}
-			}
-		}
+
+	res, rErr := hookExecutor.ExecuteExitPointStage(w.Header(), request, response)
+	if rErr != nil {
+		labels.RequestStatus = metrics.RequestStatusNetworkErr
+		ao.Errors = append(ao.Errors, fmt.Errorf("/openrtb2/auction Failed to ExecuteExitPointStage: %w", rErr))
 	}
 
 	if res == nil {
 		res = response
 	}
 	if resRaw, ok := res.(json.RawMessage); ok {
-		if _, e := w.Write(resRaw); err != nil {
+		if _, err := w.Write(resRaw); err != nil {
 			labels.RequestStatus = metrics.RequestStatusNetworkErr
-			ao.Errors = append(ao.Errors, fmt.Errorf("/openrtb2/auction Failed to write raw response: %w", e))
+			ao.Errors = append(ao.Errors, fmt.Errorf("/openrtb2/auction Failed to write raw response: %w", err))
 		}
 		return labels, ao
 	}

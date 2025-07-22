@@ -40,7 +40,7 @@ type StageExecutor interface {
 	ExecuteRawBidderResponseStage(response *adapters.BidderResponse, bidder string) *RejectError
 	ExecuteAllProcessedBidResponsesStage(adapterBids map[openrtb_ext.BidderName]*entities.PbsOrtbSeatBid)
 	ExecuteAuctionResponseStage(response *openrtb2.BidResponse)
-	ExecuteExitPointStage(request *openrtb2.BidRequest, bidResponse *openrtb2.BidResponse) (any, http.Header, *RejectError)
+	ExecuteExitPointStage(header http.Header, request *openrtb2.BidRequest, bidResponse *openrtb2.BidResponse) (any, *RejectError)
 }
 
 type HookStageExecutor interface {
@@ -297,10 +297,10 @@ func (e *hookExecutor) ExecuteAuctionResponseStage(response *openrtb2.BidRespons
 	e.pushStageOutcome(outcome)
 }
 
-func (e *hookExecutor) ExecuteExitPointStage(bidRequest *openrtb2.BidRequest, bidResponse *openrtb2.BidResponse) (any, http.Header, *RejectError) {
+func (e *hookExecutor) ExecuteExitPointStage(header http.Header, bidRequest *openrtb2.BidRequest, bidResponse *openrtb2.BidResponse) (any, *RejectError) {
 	plan := e.planBuilder.PlanForExitPointStage(e.endpoint, e.account)
 	if len(plan) == 0 {
-		return bidResponse, nil, nil
+		return bidResponse, nil
 	}
 
 	handler := func(
@@ -315,6 +315,7 @@ func (e *hookExecutor) ExecuteExitPointStage(bidRequest *openrtb2.BidRequest, bi
 	stageName := hooks.StageExitPoint.String()
 	executionCtx := e.newContext(stageName)
 	payload := hookstage.ExitPointPayload{
+		Header:      header,
 		Account:     e.account,
 		BidRequest:  bidRequest,
 		BidResponse: bidResponse,
@@ -327,7 +328,7 @@ func (e *hookExecutor) ExecuteExitPointStage(bidRequest *openrtb2.BidRequest, bi
 	e.saveModuleContexts(contexts)
 	e.pushStageOutcome(outcome)
 
-	return payload.Response, payload.HTTPHeaders, reject
+	return payload.Response, reject
 }
 
 func (e *hookExecutor) newContext(stage string) executionContext {
@@ -390,6 +391,6 @@ func (executor EmptyHookExecutor) ExecuteAllProcessedBidResponsesStage(_ map[ope
 
 func (executor EmptyHookExecutor) ExecuteAuctionResponseStage(_ *openrtb2.BidResponse) {}
 
-func (executor EmptyHookExecutor) ExecuteExitPointStage(_ *openrtb2.BidRequest, _ *openrtb2.BidResponse) (any, http.Header, *RejectError) {
-	return nil, nil, nil
+func (executor EmptyHookExecutor) ExecuteExitPointStage(_ http.Header, _ *openrtb2.BidRequest, _ *openrtb2.BidResponse) (any, *RejectError) {
+	return nil, nil
 }

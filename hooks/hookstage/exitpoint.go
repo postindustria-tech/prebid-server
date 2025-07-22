@@ -34,6 +34,6 @@ type ExitPointPayload struct {
 	Account     *config.Account
 	BidRequest  *openrtb2.BidRequest
 	BidResponse *openrtb2.BidResponse
-	HTTPHeaders http.Header
+	Header      http.Header
 	Response    any
 }

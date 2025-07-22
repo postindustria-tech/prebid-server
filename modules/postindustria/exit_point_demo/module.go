@@ -3,7 +3,6 @@ package exit_point_demo
 import (
 	"context"
 	"encoding/json"
-	"net/http"
 
 	"github.com/prebid/prebid-server/v3/hooks/hookstage"
 	"github.com/prebid/prebid-server/v3/modules/moduledeps"
@@ -29,17 +28,15 @@ func (m Module) HandleExitPointHook(
 
 	// this is example where custom type struct is returned
 	result.ChangeSet.AddMutation(func(payload hookstage.ExitPointPayload) (hookstage.ExitPointPayload, error) {
-		payload.HTTPHeaders = http.Header{
-			"Content-Type": []string{"application/javascript", "text/html"},
-			"Accept":       []string{"application/json", "text/html"},
-		}
+		payload.Header.Set("Content-Type", "text/html")
+		payload.Header.Add("Content-Type", "application/javascript")
 		payload.Response = nil
 		return payload, nil
 	}, hookstage.MutationUpdate)
 	//
 	//// this is example where custom type struct is returned
 	//result.ChangeSet.AddMutation(func(payload hookstage.ExitPointPayload) (hookstage.ExitPointPayload, error) {
-	//	payload.HTTPHeaders = http.Header{
+	//	payload.Header = http.Header{
 	//		"Content-Type": []string{"application/javascript", "text/html"},
 	//		"Accept":       []string{"application/json", "text/html"},
 	//	}
@@ -57,7 +54,7 @@ func (m Module) HandleExitPointHook(
 
 	// this is example where json is returned
 	//result.ChangeSet.AddMutation(func(payload hookstage.ExitPointPayload) (hookstage.ExitPointPayload, error) {
-	//	payload.HTTPHeaders = http.Header{
+	//	payload.Header = http.Header{
 	//		"Content-Type": []string{"application/javascript", "text/html"},
 	//		"Accept":       []string{"application/json", "text/html"},
 	//	}
