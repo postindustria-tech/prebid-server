@@ -556,7 +556,7 @@ func TestExecuteEntrypointStage(t *testing.T) {
 			req, err := http.NewRequest(http.MethodPost, test.givenUrl, reader)
 			assert.NoError(t, err)
 
-			exec := NewHookExecutor(test.givenPlanBuilder, EndpointAuction, &metricsConfig.NilMetricsEngine{})
+			exec := NewHookExecutor(test.givenPlanBuilder, EndpointAuction, &metricsConfig.NilMetricsEngine{}, &ABTests{Config: &config.Configuration{}})
 			newBody, reject := exec.ExecuteEntrypointStage(req, body)
 
 			assert.Equal(t, test.expectedReject, reject, "Unexpected stage reject.")
@@ -582,7 +582,7 @@ func TestMetricsAreGatheredDuringHookExecution(t *testing.T) {
 
 	metricEngine := &metrics.MetricsEngineMock{}
 	builder := TestAllHookResultsBuilder{}
-	exec := NewHookExecutor(TestAllHookResultsBuilder{}, "/openrtb2/auction", metricEngine)
+	exec := NewHookExecutor(TestAllHookResultsBuilder{}, "/openrtb2/auction", metricEngine, &ABTests{Config: &config.Configuration{}})
 	moduleName := "module.x-1"
 	moduleLabels := metrics.ModuleLabels{
 		Module: moduleReplacer.Replace(moduleName),
@@ -1059,7 +1059,7 @@ func TestExecuteRawAuctionStage(t *testing.T) {
 
 	for _, test := range testCases {
 		t.Run(test.description, func(t *testing.T) {
-			exec := NewHookExecutor(test.givenPlanBuilder, EndpointAuction, &metricsConfig.NilMetricsEngine{})
+			exec := NewHookExecutor(test.givenPlanBuilder, EndpointAuction, &metricsConfig.NilMetricsEngine{}, &ABTests{Config: &config.Configuration{}})
 
 			privacyConfig := getModuleActivities("foo", false, false)
 			ac := privacy.NewActivityControl(privacyConfig)
@@ -1469,7 +1469,7 @@ func TestExecuteProcessedAuctionStage(t *testing.T) {
 
 	for _, test := range testCases {
 		t.Run(test.description, func(ti *testing.T) {
-			exec := NewHookExecutor(test.givenPlanBuilder, EndpointAuction, &metricsConfig.NilMetricsEngine{})
+			exec := NewHookExecutor(test.givenPlanBuilder, EndpointAuction, &metricsConfig.NilMetricsEngine{}, &ABTests{Config: &config.Configuration{}})
 
 			privacyConfig := getModuleActivities("foo", false, false)
 			ac := privacy.NewActivityControl(privacyConfig)
@@ -1932,7 +1932,7 @@ func TestExecuteBidderRequestStage(t *testing.T) {
 
 	for _, test := range testCases {
 		t.Run(test.description, func(t *testing.T) {
-			exec := NewHookExecutor(test.givenPlanBuilder, EndpointAuction, &metricsConfig.NilMetricsEngine{})
+			exec := NewHookExecutor(test.givenPlanBuilder, EndpointAuction, &metricsConfig.NilMetricsEngine{}, &ABTests{Config: &config.Configuration{}})
 			privacyConfig := getModuleActivities("foo", false, false)
 			ac := privacy.NewActivityControl(privacyConfig)
 			exec.SetActivityControl(ac)
@@ -2381,7 +2381,7 @@ func TestExecuteRawBidderResponseStage(t *testing.T) {
 
 	for _, test := range testCases {
 		t.Run(test.description, func(ti *testing.T) {
-			exec := NewHookExecutor(test.givenPlanBuilder, EndpointAuction, &metricsConfig.NilMetricsEngine{})
+			exec := NewHookExecutor(test.givenPlanBuilder, EndpointAuction, &metricsConfig.NilMetricsEngine{}, &ABTests{Config: &config.Configuration{}})
 
 			privacyConfig := getModuleActivities("foo", false, false)
 			ac := privacy.NewActivityControl(privacyConfig)
@@ -2854,7 +2854,7 @@ func TestExecuteAllProcessedBidResponsesStage(t *testing.T) {
 
 	for _, test := range testCases {
 		t.Run(test.description, func(t *testing.T) {
-			exec := NewHookExecutor(test.givenPlanBuilder, EndpointAuction, &metricsConfig.NilMetricsEngine{})
+			exec := NewHookExecutor(test.givenPlanBuilder, EndpointAuction, &metricsConfig.NilMetricsEngine{}, &ABTests{Config: &config.Configuration{}})
 
 			privacyConfig := getModuleActivities("foo", false, false)
 			ac := privacy.NewActivityControl(privacyConfig)
@@ -3292,7 +3292,7 @@ func TestExecuteAuctionResponseStage(t *testing.T) {
 
 	for _, test := range testCases {
 		t.Run(test.description, func(t *testing.T) {
-			exec := NewHookExecutor(test.givenPlanBuilder, EndpointAuction, &metricsConfig.NilMetricsEngine{})
+			exec := NewHookExecutor(test.givenPlanBuilder, EndpointAuction, &metricsConfig.NilMetricsEngine{}, &ABTests{Config: &config.Configuration{}})
 
 			privacyConfig := getModuleActivities("foo", false, false)
 			ac := privacy.NewActivityControl(privacyConfig)
@@ -3317,7 +3317,7 @@ func TestExecuteAuctionResponseStage(t *testing.T) {
 func TestInterStageContextCommunication(t *testing.T) {
 	body := []byte(`{"foo": "bar"}`)
 	reader := bytes.NewReader(body)
-	exec := NewHookExecutor(TestWithModuleContextsPlanBuilder{}, EndpointAuction, &metricsConfig.NilMetricsEngine{})
+	exec := NewHookExecutor(TestWithModuleContextsPlanBuilder{}, EndpointAuction, &metricsConfig.NilMetricsEngine{}, &ABTests{Config: &config.Configuration{}})
 	req, err := http.NewRequest(http.MethodPost, "https://prebid.com/openrtb2/auction", reader)
 	assert.NoError(t, err)
 
@@ -4070,13 +4070,6 @@ func (e TestWithModuleABPlanBuilder) PlanForAuctionResponseStage(_ string, _ *co
 	}
 }
 
-func (e TestWithModuleABPlanBuilder) ABTestMap() map[string]hooks.ABTest {
-	return map[string]hooks.ABTest{
-		"module-1": {PercentActive: 100, LogAnalyticsTag: true},
-		"module-2": {PercentActive: 0, LogAnalyticsTag: true},
-	}
-}
-
 type TestWithModuleABPlanAccountBuilder struct {
 	hooks.EmptyPlanBuilder
 }
@@ -4197,13 +4190,6 @@ func (e TestWithModuleABPlanAccountBuilder) PlanForAuctionResponseStage(_ string
 				{Module: "module-2", Code: "bar", Hook: mockModuleABHook{}},
 			},
 		},
-	}
-}
-
-func (e TestWithModuleABPlanAccountBuilder) ABTestMap() map[string]hooks.ABTest {
-	return map[string]hooks.ABTest{
-		"module-1": {Accounts: []string{"account-id"}, PercentActive: 100, LogAnalyticsTag: true},
-		"module-2": {Accounts: []string{"not-account-id"}, PercentActive: 100, LogAnalyticsTag: true},
 	}
 }
 

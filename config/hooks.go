@@ -40,7 +40,7 @@ type ABTest struct {
 	Enabled    *bool  `mapstructure:"enabled" json:"enabled"`
 	// Accounts is a slice of accounts that will trigger module execution
 	// An empty slice will trigger module execution for all accounts
-	Accounts []interface{} `mapstructure:"accounts" json:"accounts"`
+	Accounts []string `mapstructure:"accounts" json:"accounts"`
 	// PercentActive enables specifying the percentage of requests that will trigger module execution
 	// The default value (nil) will trigger module execution on every request, the same as if the value "100" is set
 	PercentActive *uint16 `mapstructure:"percent_active" json:"percent_active"`

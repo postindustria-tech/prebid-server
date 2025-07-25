@@ -234,7 +234,7 @@ func TestValidateImpExt(t *testing.T) {
 			},
 		},
 		{
-			"Config tests",
+			"ABConfig tests",
 			[]testCase{
 				{
 					description: "Invalid Params",
