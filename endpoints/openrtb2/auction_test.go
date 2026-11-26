@@ -133,6 +133,10 @@ func TestJsonSampleRequests(t *testing.T) {
 			"Assert request with bid adjustments defined is processing correctly",
 			"bidadjustments",
 		},
+		{
+			"Assert request with ad server adapter config defined is processing correctly",
+			"adserver",
+		},
 	}
 
 	for _, tc := range testSuites {
@@ -1963,6 +1967,25 @@ func TestValidateRequestExt(t *testing.T) {
 				`multiBid already defined for pubmatic, ignoring this instance {Bidder:, Bidders:[pubmatic], MaxBids:3, TargetBidderCodePrefix:}`,
 			},
 		},
+		{
+			description:     "valid ad server config",
+			givenRequestExt: json.RawMessage(`{"prebid":{"as":{"ap":true,"apb":["appnexus"],"mode":"pre-auction","tmax_ms":150,"floor":{"enabled":true,"source":"cpm"},"short_circuit":{"enabled":true,"max_priority":4},"priority_offsets":{"appnexus":-2}}}}`),
+		},
+		{
+			description:     "ad server config with wrong type",
+			givenRequestExt: json.RawMessage(`{"prebid":{"as":{"ap":"yes"}}}`),
+			expectedErrors:  []string{"request.ext.prebid.as is invalid and was ignored: a field has the wrong type"},
+		},
+		{
+			description:     "ad server config with unknown mode",
+			givenRequestExt: json.RawMessage(`{"prebid":{"as":{"ap":true,"mode":"post-auction"}}}`),
+			expectedErrors:  []string{`request.ext.prebid.as.mode must be "parallel" or "pre-auction"`},
+		},
+		{
+			description:     "ad server config with unknown floor source",
+			givenRequestExt: json.RawMessage(`{"prebid":{"as":{"ap":true,"floor":{"enabled":true,"source":"price"}}}}`),
+			expectedErrors:  []string{`request.ext.prebid.as.floor.source must be "priority_adjusted_cpm" or "cpm"`},
+		},
 	}
 
 	for _, test := range testCases {
@@ -1976,6 +1999,24 @@ func TestValidateRequestExt(t *testing.T) {
 		} else {
 			assert.Nil(t, errs, test.description)
 		}
+	}
+}
+
+func TestValidateRequestExtDropsInvalidAdServer(t *testing.T) {
+	for _, ext := range []string{
+		`{"prebid":{"as":{"ap":true,"mode":"post-auction"}}}`,
+		`{"prebid":{"as":{"ap":"yes"}}}`,
+	} {
+		w := &openrtb_ext.RequestWrapper{BidRequest: &openrtb2.BidRequest{Ext: json.RawMessage(ext)}}
+
+		errs := validateRequestExt(w)
+
+		if assert.Len(t, errs, 1, ext) {
+			assert.IsType(t, &errortypes.Warning{}, errs[0], ext)
+			assert.Equal(t, errortypes.InvalidAdServerConfigWarningCode, errortypes.ReadCode(errs[0]), ext)
+		}
+		assert.NoError(t, w.RebuildRequest(), ext)
+		assert.NotContains(t, string(w.Ext), `"as"`, ext)
 	}
 }
 

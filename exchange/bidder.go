@@ -76,6 +76,7 @@ type bidRequestOptions struct {
 	headerDebugAllowed     bool
 	addCallSignHeader      bool
 	bidAdjustments         map[string]float64
+	adServer               *openrtb_ext.ExtRequestPrebidAdServer
 	tmaxAdjustments        *TmaxAdjustmentsPreprocessed
 	bidderRequestStartTime time.Time
 	responseDebugAllowed   bool
@@ -331,6 +332,9 @@ func (bidder *BidderAdapter) requestBid(ctx context.Context, bidderRequest Bidde
 						break
 					}
 				}
+				// The seat currency changes after each bid with a static adjustment rule, so deal amounts
+				// take the currency the conversion rate is for.
+				conversionCurrency := seatBidMap[bidderRequest.BidderName].Currency
 
 				// Only do this for request from mobile app
 				if bidderRequest.BidRequest.App != nil {
@@ -405,12 +409,32 @@ func (bidder *BidderAdapter) requestBid(ctx context.Context, bidderRequest Bidde
 
 						originalBidCpm := 0.0
 						currencyAfterAdjustments := ""
+						var deal *openrtb_ext.ExtBidPrebidDeal
+						dealRemovedReason := ""
 						if bidResponse.Bids[i].Bid != nil {
 							originalBidCpm = bidResponse.Bids[i].Bid.Price
 							bidResponse.Bids[i].Bid.Price = bidResponse.Bids[i].Bid.Price * adjustmentFactor * conversionRate
 
 							bidType := getBidTypeForAdjustments(bidResponse.Bids[i].BidType, bidResponse.Bids[i].Bid.ImpID, bidderRequest.BidRequest.Imp)
 							bidResponse.Bids[i].Bid.Price, currencyAfterAdjustments = bidadjustment.Apply(ruleToAdjustments, bidResponse.Bids[i], bidderRequest.BidderName, seatBidMap[bidderRequest.BidderName].Currency, reqInfo, bidType)
+
+							// Deal amounts get the currency conversion but not the bid adjustments, which correct
+							// the bidder's price, not the ad server's booked values. A static rule can switch the
+							// price to another currency, so the amounts follow it there.
+							convertDealAmount := func(amount float64) (float64, error) {
+								converted := amount * conversionRate
+								if currencyAfterAdjustments == conversionCurrency {
+									return converted, nil
+								}
+								return reqInfo.ConvertCurrency(converted, conversionCurrency, currencyAfterAdjustments)
+							}
+							var dealErr error
+							if deal, dealErr = trustedDeal(bidRequestOptions.adServer, bidderRequest.BidderName.String(), bidderName.String(), bidResponse.Bids[i].Bid, convertDealAmount); dealErr != nil {
+								dealRemovedReason = dealErr.Error()
+								if bidRequestOptions.responseDebugAllowed {
+									errs = append(errs, removedDealWarning(bidderName.String(), bidResponse.Bids[i].Bid.ID, dealRemovedReason))
+								}
+							}
 						}
 
 						if _, ok := seatBidMap[bidderName]; !ok {
@@ -425,14 +449,16 @@ func (bidder *BidderAdapter) requestBid(ctx context.Context, bidderRequest Bidde
 						}
 
 						seatBidMap[bidderName].Bids = append(seatBidMap[bidderName].Bids, &entities.PbsOrtbBid{
-							Bid:            bidResponse.Bids[i].Bid,
-							BidMeta:        bidResponse.Bids[i].BidMeta,
-							BidType:        bidResponse.Bids[i].BidType,
-							BidVideo:       bidResponse.Bids[i].BidVideo,
-							DealPriority:   bidResponse.Bids[i].DealPriority,
-							OriginalBidCPM: originalBidCpm,
-							OriginalBidCur: bidResponse.Currency,
-							AdapterCode:    bidderRequest.BidderCoreName,
+							Bid:               bidResponse.Bids[i].Bid,
+							BidMeta:           bidResponse.Bids[i].BidMeta,
+							BidType:           bidResponse.Bids[i].BidType,
+							BidVideo:          bidResponse.Bids[i].BidVideo,
+							DealPriority:      bidResponse.Bids[i].DealPriority,
+							Deal:              deal,
+							DealRemovedReason: dealRemovedReason,
+							OriginalBidCPM:    originalBidCpm,
+							OriginalBidCur:    bidResponse.Currency,
+							AdapterCode:       bidderRequest.BidderCoreName,
 						})
 						seatBidMap[bidderName].Currency = currencyAfterAdjustments
 					}

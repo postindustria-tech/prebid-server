@@ -15,7 +15,9 @@ type ExtBid struct {
 // DealPriority represents priority of deal bid. If its non deal bid then value will be 0
 // DealTierSatisfied true represents corresponding bid has satisfied the deal tier
 type ExtBidPrebid struct {
-	Cache             *ExtBidPrebidCache  `json:"cache,omitempty"`
+	Cache *ExtBidPrebidCache `json:"cache,omitempty"`
+	// Deprecated: DealPriority is only compared against minDealTier for ad podding, where higher wins.
+	// It is unrelated to Deal.Priority, where lower wins, and must not be used for ranking.
 	DealPriority      int                 `json:"dealpriority,omitempty"`
 	DealTierSatisfied bool                `json:"dealtiersatisfied,omitempty"`
 	Meta              *ExtBidPrebidMeta   `json:"meta,omitempty"`
@@ -27,6 +29,7 @@ type ExtBidPrebid struct {
 	BidId             string              `json:"bidid,omitempty"`
 	Passthrough       json.RawMessage     `json:"passthrough,omitempty"`
 	Floors            *ExtBidPrebidFloors `json:"floors,omitempty"`
+	Deal              *ExtBidPrebidDeal   `json:"deal,omitempty"`
 }
 
 // ExtBidPrebidFloors defines the contract for bidresponse.seatbid.bid[i].ext.prebid.floors

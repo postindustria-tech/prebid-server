@@ -763,6 +763,38 @@ func TestCloneExtRequestPrebid(t *testing.T) {
 				prebid.AdServerTargeting = nil
 			},
 		},
+		{
+			name: "AdServer",
+			prebid: &ExtRequestPrebid{
+				AdServer: &ExtRequestPrebidAdServer{
+					AllowPriority:        true,
+					AllowPriorityBidders: []string{"adserver", "ssp"},
+					Mode:                 AdServerModePreAuction,
+					TMaxMS:               ptrutil.ToPtr[int64](150),
+					Floor:                &ExtRequestPrebidAdServerFloor{Enabled: true, Source: AdServerFloorSourceCPM},
+					ShortCircuit:         &ExtRequestPrebidAdServerShortCircuit{Enabled: true, MaxPriority: ptrutil.ToPtr(4)},
+					PriorityOffsets:      map[string]int{"ssp": -2},
+				},
+			},
+			prebidCopy: &ExtRequestPrebid{
+				AdServer: &ExtRequestPrebidAdServer{
+					AllowPriority:        true,
+					AllowPriorityBidders: []string{"adserver", "ssp"},
+					Mode:                 AdServerModePreAuction,
+					TMaxMS:               ptrutil.ToPtr[int64](150),
+					Floor:                &ExtRequestPrebidAdServerFloor{Enabled: true, Source: AdServerFloorSourceCPM},
+					ShortCircuit:         &ExtRequestPrebidAdServerShortCircuit{Enabled: true, MaxPriority: ptrutil.ToPtr(4)},
+					PriorityOffsets:      map[string]int{"ssp": -2},
+				},
+			},
+			mutator: func(t *testing.T, prebid *ExtRequestPrebid) {
+				prebid.AdServer.AllowPriorityBidders[0] = "other"
+				*prebid.AdServer.TMaxMS = 50
+				prebid.AdServer.Floor.Source = AdServerFloorSourcePriorityAdjustedCPM
+				*prebid.AdServer.ShortCircuit.MaxPriority = 10
+				prebid.AdServer.PriorityOffsets["ssp"] = 0
+			},
+		},
 	}
 
 	for _, test := range testCases {

@@ -15,6 +15,7 @@ import (
 	"net/http/httptrace"
 	"net/url"
 	"os"
+	"slices"
 	"sort"
 	"strings"
 	"syscall"
@@ -26,6 +27,7 @@ import (
 	nativeResponse "github.com/prebid/openrtb/v20/native1/response"
 	"github.com/prebid/openrtb/v20/openrtb2"
 	"github.com/prebid/prebid-server/v4/adapters"
+	"github.com/prebid/prebid-server/v4/bidadjustment"
 	"github.com/prebid/prebid-server/v4/config"
 	"github.com/prebid/prebid-server/v4/currency"
 	"github.com/prebid/prebid-server/v4/errortypes"
@@ -41,6 +43,7 @@ import (
 	"github.com/prebid/prebid-server/v4/version"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
+	"github.com/stretchr/testify/require"
 )
 
 // TestSingleBidder makes sure that the following things work if the Bidder needs only one request.
@@ -3038,6 +3041,253 @@ func TestExtraBidWithMultiCurrencies(t *testing.T) {
 	})
 	assert.Equal(t, wantSeatBids, seatBids)
 	assert.False(t, extraBidderRespInfo.respProcessingStartTime.IsZero())
+}
+
+func TestRequestBidAdServerDeal(t *testing.T) {
+	trusted := &openrtb_ext.ExtRequestPrebidAdServer{AllowPriority: true, AllowPriorityBidders: []string{"AppNexus"}}
+	validDeal := `{"prebid":{"deal":{"type":2,"cpm":2,"priority_adjusted_cpm":4,"priority":6,"source":"bidder"}}}`
+
+	testCases := []struct {
+		name        string
+		adServer    *openrtb_ext.ExtRequestPrebidAdServer
+		bidExt      string
+		seat        openrtb_ext.BidderName
+		rules       map[string][]openrtb_ext.Adjustment
+		debug       bool
+		wantPrice   float64
+		wantDeal    *openrtb_ext.ExtBidPrebidDeal
+		wantWarning bool
+		wantRemoved bool
+	}{
+		{
+			name:      "trusted-seat-keeps-deal-in-request-currency",
+			adServer:  trusted,
+			bidExt:    validDeal,
+			wantPrice: 9,
+			wantDeal: &openrtb_ext.ExtBidPrebidDeal{
+				Type:                openrtb_ext.DealTypeReservation,
+				CPM:                 ptrutil.ToPtr(4.0),
+				PriorityAdjustedCPM: ptrutil.ToPtr(8.0),
+				Priority:            ptrutil.ToPtr(6),
+				Source:              openrtb_ext.DealSourceAdServer,
+			},
+		},
+		{
+			name:      "adjustment-rules-do-not-change-deal-amounts",
+			adServer:  trusted,
+			bidExt:    validDeal,
+			rules:     map[string][]openrtb_ext.Adjustment{"*|*|*": {{Type: bidadjustment.AdjustmentTypeMultiplier, Value: 2}}},
+			wantPrice: 18,
+			wantDeal: &openrtb_ext.ExtBidPrebidDeal{
+				Type:                openrtb_ext.DealTypeReservation,
+				CPM:                 ptrutil.ToPtr(4.0),
+				PriorityAdjustedCPM: ptrutil.ToPtr(8.0),
+				Priority:            ptrutil.ToPtr(6),
+				Source:              openrtb_ext.DealSourceAdServer,
+			},
+		},
+		{
+			name:      "static-rule-in-another-currency-moves-deal-amounts-there",
+			adServer:  trusted,
+			bidExt:    validDeal,
+			rules:     map[string][]openrtb_ext.Adjustment{"*|*|*": {{Type: bidadjustment.AdjustmentTypeStatic, Value: 10, Currency: "USD"}}},
+			wantPrice: 10,
+			wantDeal: &openrtb_ext.ExtBidPrebidDeal{
+				Type:                openrtb_ext.DealTypeReservation,
+				CPM:                 ptrutil.ToPtr(2.0),
+				PriorityAdjustedCPM: ptrutil.ToPtr(4.0),
+				Priority:            ptrutil.ToPtr(6),
+				Source:              openrtb_ext.DealSourceAdServer,
+			},
+		},
+		{
+			name:        "deal-amount-overflows-after-conversion",
+			adServer:    trusted,
+			bidExt:      `{"prebid":{"deal":{"type":2,"cpm":1e308}}}`,
+			debug:       true,
+			wantWarning: true,
+			wantRemoved: true,
+		},
+		{
+			name:     "deal-null-is-ignored",
+			adServer: trusted,
+			bidExt:   `{"prebid":{"deal":null}}`,
+			debug:    true,
+		},
+		{
+			name:        "trusted-bidder-under-alternate-seat",
+			adServer:    trusted,
+			bidExt:      validDeal,
+			seat:        "groupm",
+			debug:       true,
+			wantWarning: true,
+			wantRemoved: true,
+		},
+		{
+			name:        "untrusted-bidder-under-trusted-seat",
+			adServer:    &openrtb_ext.ExtRequestPrebidAdServer{AllowPriority: true, AllowPriorityBidders: []string{"groupm"}},
+			bidExt:      validDeal,
+			seat:        "groupm",
+			debug:       true,
+			wantWarning: true,
+			wantRemoved: true,
+		},
+		{
+			name:        "alternate-seat-is-not-trusted-even-when-listed",
+			adServer:    &openrtb_ext.ExtRequestPrebidAdServer{AllowPriority: true, AllowPriorityBidders: []string{"appnexus", "groupm"}},
+			bidExt:      validDeal,
+			seat:        "groupm",
+			debug:       true,
+			wantWarning: true,
+			wantRemoved: true,
+		},
+		{
+			name:        "seat-not-in-apb",
+			adServer:    &openrtb_ext.ExtRequestPrebidAdServer{AllowPriority: true, AllowPriorityBidders: []string{"rubicon"}},
+			bidExt:      validDeal,
+			debug:       true,
+			wantWarning: true,
+			wantRemoved: true,
+		},
+		{
+			name:     "ap-false",
+			adServer: &openrtb_ext.ExtRequestPrebidAdServer{AllowPriorityBidders: []string{"appnexus"}},
+			bidExt:   validDeal,
+			debug:    true,
+		},
+		{
+			name:     "no-ad-server-config",
+			adServer: nil,
+			bidExt:   validDeal,
+			debug:    true,
+		},
+		{
+			name:     "trusted-seat-without-deal",
+			adServer: trusted,
+			bidExt:   `{"prebid":{"meta":{}}}`,
+			debug:    true,
+		},
+		{
+			name:        "trusted-seat-reservation-without-cpm",
+			adServer:    trusted,
+			bidExt:      `{"prebid":{"deal":{"type":2}}}`,
+			debug:       true,
+			wantWarning: true,
+			wantRemoved: true,
+		},
+		{
+			name:        "trusted-seat-invalid-deal-debug-off",
+			adServer:    trusted,
+			bidExt:      `{"prebid":{"deal":{"type":2}}}`,
+			wantRemoved: true,
+		},
+		{
+			name:        "trusted-seat-deal-not-an-object",
+			adServer:    trusted,
+			bidExt:      `{"prebid":{"deal":"{}"}}`,
+			debug:       true,
+			wantWarning: true,
+			wantRemoved: true,
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			bidderImpl := &goodSingleBidder{
+				httpRequest: &adapters.RequestData{Method: "POST", Uri: "test.com", Body: []byte("{}")},
+				bidResponse: &adapters.BidderResponse{
+					Currency: "USD",
+					Bids: []*adapters.TypedBid{{
+						Bid:     &openrtb2.Bid{ID: "bid1", ImpID: "imp1", Price: 3, DealID: "deal1", Ext: json.RawMessage(tc.bidExt)},
+						BidType: openrtb_ext.BidTypeBanner,
+						Seat:    tc.seat,
+					}},
+				},
+			}
+			server := httptest.NewServer(mockHandler(200, "getBody", "{}"))
+			defer server.Close()
+			bidderImpl.httpRequest.Uri = server.URL
+
+			bidder := AdaptBidder(bidderImpl, server.Client(), &config.Configuration{}, &metricsConfig.NilMetricsEngine{}, openrtb_ext.BidderAppnexus, nil, "")
+			bidderReq := BidderRequest{
+				BidRequest: &openrtb2.BidRequest{Imp: []openrtb2.Imp{{ID: "imp1"}}, Cur: []string{"EUR"}},
+				BidderName: openrtb_ext.BidderAppnexus,
+			}
+			bidReqOptions := bidRequestOptions{
+				bidAdjustments:       map[string]float64{string(openrtb_ext.BidderAppnexus): 1.5},
+				adServer:             tc.adServer,
+				responseDebugAllowed: tc.debug,
+			}
+			rates := currency.NewRates(map[string]map[string]float64{"USD": {"EUR": 2}, "EUR": {"USD": 0.5}})
+			reqInfo := adapters.NewExtraRequestInfo(rates)
+
+			alternateBidderCodes := openrtb_ext.ExtAlternateBidderCodes{
+				Enabled: true,
+				Bidders: map[string]openrtb_ext.ExtAdapterAlternateBidderCodes{
+					string(openrtb_ext.BidderAppnexus): {Enabled: true, AllowedBidderCodes: []string{"groupm"}},
+				},
+			}
+
+			seatBids, _, errs := bidder.requestBid(context.Background(), bidderReq, rates, &reqInfo, &adscert.NilSigner{}, bidReqOptions, alternateBidderCodes, &hookexecution.EmptyHookExecutor{}, tc.rules)
+
+			if tc.wantWarning {
+				require.Len(t, errs, 1)
+				assert.Equal(t, errortypes.InvalidBidDealWarningCode, errortypes.ReadCode(errs[0]))
+			} else {
+				assert.Empty(t, errs)
+			}
+			var bids []*entities.PbsOrtbBid
+			for _, seatBid := range seatBids {
+				bids = append(bids, seatBid.Bids...)
+			}
+			require.Len(t, bids, 1)
+			if tc.wantPrice != 0 {
+				assert.Equal(t, tc.wantPrice, bids[0].Bid.Price)
+			}
+			assert.Equal(t, tc.wantDeal, bids[0].Deal)
+			assert.Equal(t, tc.wantRemoved, bids[0].DealRemovedReason != "")
+			assert.NotContains(t, string(bids[0].Bid.Ext), "deal")
+		})
+	}
+}
+
+func TestRequestBidAdServerDealStaticRuleOnSeveralBids(t *testing.T) {
+	server := httptest.NewServer(mockHandler(200, "getBody", "{}"))
+	defer server.Close()
+
+	dealExt := json.RawMessage(`{"prebid":{"deal":{"type":1,"cpm":2}}}`)
+	bidderImpl := &goodSingleBidder{
+		httpRequest: &adapters.RequestData{Method: "POST", Uri: server.URL, Body: []byte("{}")},
+		bidResponse: &adapters.BidderResponse{
+			Currency: "USD",
+			Bids: []*adapters.TypedBid{
+				{Bid: &openrtb2.Bid{ID: "bid1", ImpID: "imp1", Price: 3, DealID: "deal1", Ext: slices.Clone(dealExt)}, BidType: openrtb_ext.BidTypeBanner},
+				{Bid: &openrtb2.Bid{ID: "bid2", ImpID: "imp1", Price: 3, DealID: "deal2", Ext: slices.Clone(dealExt)}, BidType: openrtb_ext.BidTypeBanner},
+			},
+		},
+	}
+	bidder := AdaptBidder(bidderImpl, server.Client(), &config.Configuration{}, &metricsConfig.NilMetricsEngine{}, openrtb_ext.BidderAppnexus, nil, "")
+	bidderReq := BidderRequest{
+		BidRequest: &openrtb2.BidRequest{Imp: []openrtb2.Imp{{ID: "imp1"}}, Cur: []string{"EUR"}},
+		BidderName: openrtb_ext.BidderAppnexus,
+	}
+	bidReqOptions := bidRequestOptions{
+		adServer: &openrtb_ext.ExtRequestPrebidAdServer{AllowPriority: true, AllowPriorityBidders: []string{"appnexus"}},
+	}
+	rates := currency.NewRates(map[string]map[string]float64{"USD": {"EUR": 2}, "EUR": {"USD": 0.5}})
+	reqInfo := adapters.NewExtraRequestInfo(rates)
+	rules := map[string][]openrtb_ext.Adjustment{"*|*|*": {{Type: bidadjustment.AdjustmentTypeStatic, Value: 10, Currency: "USD"}}}
+
+	seatBids, _, errs := bidder.requestBid(context.Background(), bidderReq, rates, &reqInfo, &adscert.NilSigner{}, bidReqOptions, openrtb_ext.ExtAlternateBidderCodes{}, &hookexecution.EmptyHookExecutor{}, rules)
+
+	assert.Empty(t, errs)
+	require.Len(t, seatBids, 1)
+	require.Len(t, seatBids[0].Bids, 2)
+	assert.Equal(t, "USD", seatBids[0].Currency)
+	for _, bid := range seatBids[0].Bids {
+		assert.Equal(t, 10.0, bid.Bid.Price, bid.Bid.ID)
+		assert.Equal(t, ptrutil.ToPtr(2.0), bid.Deal.CPM, bid.Bid.ID)
+	}
 }
 
 func TestGetBidType(t *testing.T) {

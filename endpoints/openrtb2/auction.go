@@ -1138,6 +1138,15 @@ func validateRequestExt(req *openrtb_ext.RequestWrapper) []error {
 		})
 	}
 
+	if err := prebid.AdServer.Validate(); err != nil {
+		prebid.AdServer = nil
+		reqExt.SetPrebid(prebid)
+		errs = append(errs, &errortypes.Warning{
+			WarningCode: errortypes.InvalidAdServerConfigWarningCode,
+			Message:     err.Error(),
+		})
+	}
+
 	return errs
 }
 

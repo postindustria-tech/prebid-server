@@ -71,6 +71,11 @@
         "aliases": {
           "districtm": "appnexus"
         },
+        "as": {
+          "ap": true,
+          "apb": ["appnexus"],
+          "mode": "parallel"
+        },
         "bidadjustmentfactors": {
           "appnexus": 1.01,
           "districtm": 0.98,

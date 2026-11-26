@@ -42,6 +42,7 @@ type ExtRequest struct {
 
 // ExtRequestPrebid defines the contract for bidrequest.ext.prebid
 type ExtRequestPrebid struct {
+	AdServer             *ExtRequestPrebidAdServer       `json:"as,omitempty"`
 	AdServerTargeting    []AdServerTarget                `json:"adservertargeting,omitempty"`
 	Aliases              map[string]string               `json:"aliases,omitempty"`
 	AliasGVLIDs          map[string]uint16               `json:"aliasgvlids,omitempty"`
@@ -569,6 +570,7 @@ func (erp *ExtRequestPrebid) Clone() *ExtRequestPrebid {
 		}
 	}
 	clone.AdServerTargeting = slices.Clone(erp.AdServerTargeting)
+	clone.AdServer = erp.AdServer.Clone()
 
 	return &clone
 }
