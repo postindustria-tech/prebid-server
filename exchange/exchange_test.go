@@ -46,6 +46,7 @@ import (
 	"github.com/prebid/prebid-server/v4/util/ptrutil"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
+	"github.com/stretchr/testify/require"
 	jsonpatch "gopkg.in/evanphx/json-patch.v5"
 )
 
@@ -1446,6 +1447,127 @@ func TestBidReturnsCreative(t *testing.T) {
 		assert.Equal(t, 0, bidExt.Prebid.DealPriority, "%s. Test should have DealPriority set to 0", test.description)
 		assert.Equal(t, false, bidExt.Prebid.DealTierSatisfied, "%s. Test should have DealTierSatisfied set to false", test.description)
 	}
+}
+
+func TestMakeBidWritesDeal(t *testing.T) {
+	deal := &openrtb_ext.ExtBidPrebidDeal{Type: openrtb_ext.DealTypeSponsorship, CPM: ptrutil.ToPtr(6.0), Source: openrtb_ext.DealSourceAdServer}
+	bid := &openrtb2.Bid{ID: "bid1", ImpID: "imp1", DealID: "deal1", Ext: json.RawMessage(`{"prebid":{"deal":{"type":1,"cpm":3,"source":"bidder"}}}`)}
+	bids := []*entities.PbsOrtbBid{{Bid: bid, BidType: openrtb_ext.BidTypeBanner, Deal: deal}}
+
+	e := &exchange{cache: &wellBehavedCache{}, me: &metricsConf.NilMetricsEngine{}}
+	result, errs := e.makeBid(bids, &auction{}, true, nil, &openrtb_ext.RequestWrapper{}, nil, "", "", &SeatNonBidBuilder{})
+
+	require.Empty(t, errs)
+	require.Len(t, result, 1)
+	var bidExt openrtb_ext.ExtBid
+	require.NoError(t, jsonutil.UnmarshalValid(result[0].Ext, &bidExt))
+	assert.Equal(t, deal, bidExt.Prebid.Deal)
+}
+
+func TestTakeRawDeal(t *testing.T) {
+	testCases := []struct {
+		name     string
+		ext      string
+		wantExt  string
+		wantDeal string
+	}{
+		{name: "one-deal", ext: `{"prebid":{"type":"banner","deal":{"type":1}}}`, wantExt: `{"prebid":{"type":"banner"}}`, wantDeal: `{"type":1}`},
+		{name: "comma-on-next-line", ext: "{\"prebid\":{\"deal\":{\"type\":3}\n,\"type\":\"banner\"}}", wantExt: `{"prebid":{"type":"banner"}}`, wantDeal: `{"type":3}`},
+		{name: "duplicate-deal-keys", ext: `{"prebid":{"deal":{"type":1},"deal":{"type":2}}}`, wantExt: `{"prebid":{}}`, wantDeal: `{"type":2}`},
+		{name: "deal-under-duplicate-prebid-key", ext: `{"prebid":{},"prebid":{"deal":{"type":1}}}`, wantExt: `{"prebid":{}}`, wantDeal: `{"type":1}`},
+		{name: "null-deal", ext: `{"prebid":{"deal":null}}`, wantExt: `{"prebid":{}}`, wantDeal: `null`},
+		{name: "no-deal", ext: `{"prebid":{"type":"banner"}}`, wantExt: `{"prebid":{"type":"banner"}}`},
+		{name: "no-prebid", ext: `{"bidder":{}}`, wantExt: `{"bidder":{}}`},
+		{name: "escaped-deal-key", ext: `{"prebid":{"\u0064eal":{"type":1}}}`, wantExt: `{"prebid":{}}`, wantDeal: `{"type":1}`},
+		{name: "deal-only-in-a-value", ext: `{"prebid":{"type":"banner"},"bidder":{"name":"deal"}}`, wantExt: `{"prebid":{"type":"banner"},"bidder":{"name":"deal"}}`},
+		{name: "null-next-to-deal", ext: `{"x":null,"prebid":{"deal":{"type":0},"meta":null}}`, wantExt: `{"x":null,"prebid":{"meta":null}}`, wantDeal: `{"type":0}`},
+		{name: "dealid-only", ext: `{"prebid":{"type":"banner"},"bidder":{"dealid":"d1"}}`, wantExt: `{"prebid":{"type":"banner"},"bidder":{"dealid":"d1"}}`},
+		{name: "invalid-ext", ext: `,{"prebid":{"deal":{"type":1}}`, wantExt: `,{"prebid":{"deal":{"type":1}}`},
+	}
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			ext, deal := takeRawDeal(json.RawMessage(tc.ext))
+			if tc.name == "invalid-ext" {
+				assert.Equal(t, tc.wantExt, string(ext))
+			} else {
+				assert.JSONEq(t, tc.wantExt, string(ext))
+			}
+			if tc.wantDeal == "" {
+				assert.Nil(t, deal)
+			} else {
+				assert.JSONEq(t, tc.wantDeal, string(deal))
+			}
+		})
+	}
+}
+
+func TestErrorsToMetricRemovedDeal(t *testing.T) {
+	got := errorsToMetric([]error{removedDealWarning("appnexus", "bid-1", "deal metadata must be a JSON object")})
+	assert.Equal(t, map[metrics.AdapterError]struct{}{metrics.AdapterErrorValidation: {}}, got)
+}
+
+func TestDecodeObjectKeepsNull(t *testing.T) {
+	fields, err := decodeObject(json.RawMessage(`{"meta":null,"type":"banner"}`))
+	require.NoError(t, err)
+	assert.Equal(t, json.RawMessage("null"), fields["meta"])
+}
+
+func TestTrustedDealConversionError(t *testing.T) {
+	adServer := &openrtb_ext.ExtRequestPrebidAdServer{AllowPriority: true, AllowPriorityBidders: []string{"appnexus"}}
+	bid := &openrtb2.Bid{ID: "bid1", DealID: "deal1", Ext: json.RawMessage(`{"prebid":{"deal":{"type":1,"cpm":5}}}`)}
+	convert := func(float64) (float64, error) { return 0, errors.New("no rate for XYZ") }
+
+	deal, err := trustedDeal(adServer, "appnexus", "appnexus", bid, convert)
+
+	assert.Nil(t, deal)
+	assert.EqualError(t, err, "deal amount cannot be converted: no rate for XYZ")
+	assert.JSONEq(t, `{"prebid":{}}`, string(bid.Ext))
+}
+
+func TestBuildStoredAuctionResponseDeal(t *testing.T) {
+	storedResponse := json.RawMessage(`[
+		{"seat":"appnexus","bid":[{"id":"bid1","price":3,"dealid":"deal1","ext":{"prebid":{"type":"banner","deal":{"type":1,"cpm":5}}}}]},
+		{"seat":"rubicon","bid":[{"id":"bid2","price":3,"dealid":"deal2","ext":{"prebid":{"type":"banner","deal":{"type":1,"cpm":5}}}}]}
+	]`)
+	adServer := &openrtb_ext.ExtRequestPrebidAdServer{AllowPriority: true, AllowPriorityBidders: []string{"appnexus"}}
+
+	bids, _, _, err := buildStoredAuctionResponse(map[string]json.RawMessage{"imp1": storedResponse}, adServer)
+	require.NoError(t, err)
+
+	trusted := bids["appnexus"].Bids[0]
+	assert.Equal(t, &openrtb_ext.ExtBidPrebidDeal{Type: openrtb_ext.DealTypeSponsorship, CPM: ptrutil.ToPtr(5.0), Source: openrtb_ext.DealSourceAdServer}, trusted.Deal)
+	assert.Empty(t, trusted.DealRemovedReason)
+
+	untrusted := bids["rubicon"].Bids[0]
+	assert.Nil(t, untrusted.Deal)
+	assert.Equal(t, "bidder rubicon is not in request.ext.prebid.as.apb", untrusted.DealRemovedReason)
+
+	assert.Equal(t, []openrtb_ext.ExtResponseDebugAdServerStrippedDeal{
+		{Seat: "rubicon", ImpID: "imp1", BidID: "bid2", Reason: "bidder rubicon is not in request.ext.prebid.as.apb"},
+	}, strippedDeals(bids))
+}
+
+func TestStrippedDealsSorted(t *testing.T) {
+	adapterBids := map[openrtb_ext.BidderName]*entities.PbsOrtbSeatBid{
+		"rubicon": {Bids: []*entities.PbsOrtbBid{
+			{Bid: &openrtb2.Bid{ID: "b2", ImpID: "imp1"}, DealRemovedReason: "reason b2"},
+			{Bid: &openrtb2.Bid{ID: "b1", ImpID: "imp2"}, DealRemovedReason: "reason b1 imp2"},
+			{Bid: &openrtb2.Bid{ID: "b1", ImpID: "imp1"}, DealRemovedReason: "reason b1"},
+		}},
+		"appnexus": {Bids: []*entities.PbsOrtbBid{
+			{Bid: &openrtb2.Bid{ID: "b3", ImpID: "imp2"}, DealRemovedReason: "reason b3"},
+			{Bid: &openrtb2.Bid{ID: "b4", ImpID: "imp2"}},
+		}},
+		"pubmatic": nil,
+	}
+
+	assert.Equal(t, []openrtb_ext.ExtResponseDebugAdServerStrippedDeal{
+		{Seat: "appnexus", ImpID: "imp2", BidID: "b3", Reason: "reason b3"},
+		{Seat: "rubicon", ImpID: "imp1", BidID: "b1", Reason: "reason b1"},
+		{Seat: "rubicon", ImpID: "imp1", BidID: "b2", Reason: "reason b2"},
+		{Seat: "rubicon", ImpID: "imp2", BidID: "b1", Reason: "reason b1 imp2"},
+	}, strippedDeals(adapterBids))
+	assert.Nil(t, strippedDeals(nil))
 }
 
 func TestGetBidCacheInfo(t *testing.T) {
@@ -4212,6 +4334,62 @@ func TestStoredAuctionResponses(t *testing.T) {
 	}
 }
 
+func TestStoredAuctionResponseAdServerDeal(t *testing.T) {
+	e := new(exchange)
+	e.cache = &wellBehavedCache{}
+	e.me = &metricsConf.NilMetricsEngine{}
+	e.bidIDGenerator = &fakeBidIDGenerator{}
+	e.currencyConverter = currency.NewRateConverter(&http.Client{}, time.Duration(1), "", time.Duration(0))
+	e.gdprPermsBuilder = fakePermissionsBuilder{permissions: &permissionsMock{allowAllBidders: true}}.Builder
+
+	storedResponse := json.RawMessage(`[
+		{"seat":"appnexus","bid":[{"id":"bid1","price":3,"dealid":"deal1","ext":{"prebid":{"type":"banner","deal":{"type":1,"cpm":5}}}}]},
+		{"seat":"rubicon","bid":[{"id":"bid2","price":2,"dealid":"deal2","ext":{"prebid":{"type":"banner","deal":{"type":1,"cpm":4}}}}]}
+	]`)
+	holdAuction := func(test int8) *openrtb_ext.ExtBidResponse {
+		bidRequest := &openrtb2.BidRequest{
+			ID:   "request-id",
+			Test: test,
+			Imp:  []openrtb2.Imp{{ID: "imp1", Banner: &openrtb2.Banner{W: ptrutil.ToPtr[int64](300), H: ptrutil.ToPtr[int64](250)}}},
+			Ext:  json.RawMessage(`{"prebid":{"as":{"ap":true,"apb":["appnexus"]}}}`),
+		}
+		auctionRequest := &AuctionRequest{
+			BidRequestWrapper:      &openrtb_ext.RequestWrapper{BidRequest: bidRequest},
+			Account:                config.Account{DebugAllow: true},
+			UserSyncs:              &emptyUsersync{},
+			StoredAuctionResponses: map[string]json.RawMessage{"imp1": storedResponse},
+			HookExecutor:           &hookexecution.EmptyHookExecutor{},
+			TCF2Config:             gdpr.NewTCF2Config(config.TCF2{}, config.AccountGDPR{}),
+		}
+		response, err := e.HoldAuction(context.Background(), auctionRequest, &DebugLog{})
+		require.NoError(t, err)
+
+		bidExts := map[string]openrtb_ext.ExtBid{}
+		for _, seatBid := range response.BidResponse.SeatBid {
+			for _, bid := range seatBid.Bid {
+				var bidExt openrtb_ext.ExtBid
+				require.NoError(t, jsonutil.UnmarshalValid(bid.Ext, &bidExt))
+				bidExts[seatBid.Seat] = bidExt
+			}
+		}
+		require.Len(t, bidExts, 2)
+		assert.Equal(t, &openrtb_ext.ExtBidPrebidDeal{Type: openrtb_ext.DealTypeSponsorship, CPM: ptrutil.ToPtr(5.0), Source: openrtb_ext.DealSourceAdServer}, bidExts["appnexus"].Prebid.Deal)
+		assert.Nil(t, bidExts["rubicon"].Prebid.Deal)
+
+		var responseExt openrtb_ext.ExtBidResponse
+		require.NoError(t, jsonutil.UnmarshalValid(response.BidResponse.Ext, &responseExt))
+		return &responseExt
+	}
+
+	responseExt := holdAuction(1)
+	require.NotNil(t, responseExt.Debug)
+	assert.Equal(t, &openrtb_ext.ExtResponseDebugAdServer{StrippedDeals: []openrtb_ext.ExtResponseDebugAdServerStrippedDeal{
+		{Seat: "rubicon", ImpID: "imp1", BidID: "bid2", Reason: "bidder rubicon is not in request.ext.prebid.as.apb"},
+	}}, responseExt.Debug.AdServer)
+
+	assert.Nil(t, holdAuction(0).Debug)
+}
+
 func TestBuildStoredAuctionResponses(t *testing.T) {
 
 	type testIn struct {
@@ -4482,7 +4660,7 @@ func TestBuildStoredAuctionResponses(t *testing.T) {
 	}
 	for _, test := range testCases {
 
-		bids, fledge, adapters, err := buildStoredAuctionResponse(test.in.StoredAuctionResponses)
+		bids, fledge, adapters, err := buildStoredAuctionResponse(test.in.StoredAuctionResponses, nil)
 		if len(test.errorMessage) > 0 {
 			assert.Equal(t, test.errorMessage, err.Error(), " incorrect expected error")
 		} else {
@@ -5472,7 +5650,7 @@ func TestGetAllBids(t *testing.T) {
 				adapterMap: test.in.adapterMap,
 			}
 
-			adapterBids, adapterExtra, extraRespInfo := e.getAllBids(context.Background(), test.in.bidderRequests, test.in.bidAdjustments,
+			adapterBids, adapterExtra, extraRespInfo := e.getAllBids(context.Background(), test.in.bidderRequests, test.in.bidAdjustments, nil,
 				test.in.conversions, test.in.accountDebugAllowed, test.in.globalPrivacyControlHeader, test.in.headerDebugAllowed, test.in.alternateBidderCodes, test.in.experiment,
 				test.in.hookExecutor, test.in.pbsRequestStartTime, test.in.bidAdjustmentRules, test.in.tmaxAdjustments, false, test.in.liveAdaptersPreferredMediaType)
 
@@ -5484,6 +5662,47 @@ func TestGetAllBids(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestGetAllBidsPassesAdServerConfig(t *testing.T) {
+	server := httptest.NewServer(mockHandler(200, "getBody", "{}"))
+	defer server.Close()
+
+	bidder := AdaptBidder(&goodSingleBidder{
+		httpRequest: &adapters.RequestData{Method: "POST", Uri: server.URL},
+		bidResponse: &adapters.BidderResponse{Bids: []*adapters.TypedBid{{
+			Bid:     &openrtb2.Bid{ID: "bid1", ImpID: "imp1", Price: 3, DealID: "deal1", Ext: json.RawMessage(`{"prebid":{"deal":{"type":1,"cpm":3}}}`)},
+			BidType: openrtb_ext.BidTypeBanner,
+		}}},
+	}, server.Client(), &config.Configuration{}, &metricsConfig.NilMetricsEngine{}, openrtb_ext.BidderAppnexus, nil, "")
+	e := exchange{
+		cache:            &wellBehavedCache{},
+		me:               &metricsConf.NilMetricsEngine{},
+		gdprPermsBuilder: fakePermissionsBuilder{permissions: &permissionsMock{allowAllBidders: true}}.Builder,
+		adapterMap:       map[openrtb_ext.BidderName]AdaptedBidder{openrtb_ext.BidderAppnexus: bidder},
+	}
+	bidderRequests := []BidderRequest{{
+		BidderName:     openrtb_ext.BidderAppnexus,
+		BidderCoreName: openrtb_ext.BidderAppnexus,
+		BidRequest:     &openrtb2.BidRequest{ID: "request-id", Imp: []openrtb2.Imp{{ID: "imp1"}}},
+	}}
+	adServer := &openrtb_ext.ExtRequestPrebidAdServer{AllowPriority: true, AllowPriorityBidders: []string{"appnexus"}}
+
+	adapterBids, _, _ := e.getAllBids(context.Background(), bidderRequests, nil, adServer, &currency.ConstantRates{}, false, "", false,
+		openrtb_ext.ExtAlternateBidderCodes{}, nil, &hookexecution.EmptyHookExecutor{}, time.Now(), nil, nil, false, nil)
+
+	require.Len(t, adapterBids[openrtb_ext.BidderAppnexus].Bids, 1)
+	assert.Equal(t, &openrtb_ext.ExtBidPrebidDeal{Type: openrtb_ext.DealTypeSponsorship, CPM: ptrutil.ToPtr(3.0), Source: openrtb_ext.DealSourceAdServer},
+		adapterBids[openrtb_ext.BidderAppnexus].Bids[0].Deal)
+}
+
+func TestBuildStoredAuctionResponseWithBadlyTypedDeal(t *testing.T) {
+	storedResponse := json.RawMessage(`[{"seat":"appnexus","bid":[{"id":"bid1","dealid":"deal1","ext":{"prebid":{"type":"banner","deal":"x"}}}]}]`)
+
+	bids, _, _, err := buildStoredAuctionResponse(map[string]json.RawMessage{"imp1": storedResponse}, nil)
+
+	require.NoError(t, err)
+	assert.Len(t, bids["appnexus"].Bids, 1)
 }
 
 type MockSigner struct {

@@ -31,6 +31,21 @@ type ExtResponseDebug struct {
 	HttpCalls map[BidderName][]*ExtHttpCall `json:"httpcalls,omitempty"`
 	// Request after resolution of stored requests and debug overrides
 	ResolvedRequest json.RawMessage `json:"resolvedrequest,omitempty"`
+	// AdServer defines the contract for bidresponse.ext.debug.as
+	AdServer *ExtResponseDebugAdServer `json:"as,omitempty"`
+}
+
+// ExtResponseDebugAdServer explains what PBS did with ad server deal metadata.
+type ExtResponseDebugAdServer struct {
+	StrippedDeals []ExtResponseDebugAdServerStrippedDeal `json:"stripped,omitempty"`
+}
+
+// ExtResponseDebugAdServerStrippedDeal is a bid.ext.prebid.deal that PBS removed, and why.
+type ExtResponseDebugAdServerStrippedDeal struct {
+	Seat   string `json:"seat"`
+	ImpID  string `json:"impid"`
+	BidID  string `json:"bidid"`
+	Reason string `json:"reason"`
 }
 
 // ExtResponseSyncData defines the contract for bidresponse.ext.usersync.{bidder}
@@ -48,7 +63,23 @@ type ExtResponsePrebid struct {
 	Fledge           *Fledge           `json:"fledge,omitempty"`
 	Targeting        map[string]string `json:"targeting,omitempty"`
 	// SeatNonBid holds the array of Bids which are either rejected, no bids inside bidresponse.ext.prebid.seatnonbid
-	SeatNonBid []SeatNonBid `json:"seatnonbid,omitempty"`
+	SeatNonBid []SeatNonBid               `json:"seatnonbid,omitempty"`
+	AdServer   *ExtResponsePrebidAdServer `json:"as,omitempty"`
+}
+
+// ExtResponsePrebidAdServer defines the contract for bidresponse.ext.prebid.as, a summary of
+// what PBS did with the ad server adapters. It is present only when request.ext.prebid.as.ap is true.
+type ExtResponsePrebidAdServer struct {
+	Mode           string `json:"mode,omitempty"`
+	ShortCircuited bool   `json:"short_circuited"`
+	// DerivedFloors is keyed by imp id
+	DerivedFloors map[string]ExtResponsePrebidAdServerFloor `json:"derived_floors,omitempty"`
+}
+
+type ExtResponsePrebidAdServerFloor struct {
+	Floor  float64 `json:"floor"`
+	Cur    string  `json:"cur"`
+	Bidder string  `json:"bidder"`
 }
 
 // FledgeResponse defines the contract for bidresponse.ext.fledge

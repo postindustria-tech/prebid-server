@@ -41,6 +41,8 @@ const (
 	TooLongTargetingPrefixWarningCode
 	TooShortTargetingPrefixWarningCode
 	BidderBlockedByPrivacySettings
+	InvalidAdServerConfigWarningCode
+	InvalidBidDealWarningCode
 )
 
 // Coder provides an error or warning code with severity.

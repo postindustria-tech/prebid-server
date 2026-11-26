@@ -373,7 +373,7 @@ func (e *exchange) HoldAuction(ctx context.Context, r *AuctionRequest, debugLog 
 	)
 
 	if len(r.StoredAuctionResponses) > 0 {
-		adapterBids, fledge, liveAdapters, err = buildStoredAuctionResponse(r.StoredAuctionResponses)
+		adapterBids, fledge, liveAdapters, err = buildStoredAuctionResponse(r.StoredAuctionResponses, requestExtPrebid.AdServer)
 		if err != nil {
 			return nil, err
 		}
@@ -394,7 +394,7 @@ func (e *exchange) HoldAuction(ctx context.Context, r *AuctionRequest, debugLog 
 		liveAdaptersPreferredMediaType := getBidderPreferredMediaTypeMap(requestExtPrebid, &r.Account, liveAdapters, e.singleFormatBidders)
 
 		var extraRespInfo extraAuctionResponseInfo
-		adapterBids, adapterExtra, extraRespInfo = e.getAllBids(auctionCtx, bidderRequests, bidAdjustmentFactors, conversions, accountDebugAllow, r.GlobalPrivacyControlHeader, debugLog.DebugOverride, alternateBidderCodes, requestExtLegacy.Prebid.Experiment, r.HookExecutor, r.StartTime, bidAdjustmentRules, r.TmaxAdjustments, responseDebugAllow, liveAdaptersPreferredMediaType)
+		adapterBids, adapterExtra, extraRespInfo = e.getAllBids(auctionCtx, bidderRequests, bidAdjustmentFactors, requestExtPrebid.AdServer, conversions, accountDebugAllow, r.GlobalPrivacyControlHeader, debugLog.DebugOverride, alternateBidderCodes, requestExtLegacy.Prebid.Experiment, r.HookExecutor, r.StartTime, bidAdjustmentRules, r.TmaxAdjustments, responseDebugAllow, liveAdaptersPreferredMediaType)
 		fledge = extraRespInfo.fledge
 		anyBidsReturned = extraRespInfo.bidsFound
 		r.BidderResponseStartTime = extraRespInfo.bidderResponseStartTime
@@ -715,6 +715,7 @@ func (e *exchange) getAllBids(
 	ctx context.Context,
 	bidderRequests []BidderRequest,
 	bidAdjustments map[string]float64,
+	adServer *openrtb_ext.ExtRequestPrebidAdServer,
 	conversions currency.Conversions,
 	accountDebugAllowed bool,
 	globalPrivacyControlHeader string,
@@ -770,6 +771,7 @@ func (e *exchange) getAllBids(
 				headerDebugAllowed:     headerDebugAllowed,
 				addCallSignHeader:      isAdsCertEnabled(experiment, e.bidderInfo[string(bidderRequest.BidderName)]),
 				bidAdjustments:         bidAdjustments,
+				adServer:               adServer,
 				tmaxAdjustments:        tmaxAdjustments,
 				bidderRequestStartTime: start,
 				responseDebugAllowed:   responseDebugAllowed,
@@ -917,7 +919,7 @@ func errorsToMetric(errs []error) map[metrics.AdapterError]struct{} {
 			ret[metrics.AdapterErrorBadServerResponse] = s
 		case errortypes.FailedToRequestBidsErrorCode:
 			ret[metrics.AdapterErrorFailedToRequestBids] = s
-		case errortypes.AlternateBidderCodeWarningCode:
+		case errortypes.AlternateBidderCodeWarningCode, errortypes.InvalidBidDealWarningCode:
 			ret[metrics.AdapterErrorValidation] = s
 		case errortypes.TmaxTimeoutErrorCode:
 			ret[metrics.AdapterErrorTmaxTimeout] = s
@@ -1243,6 +1245,9 @@ func (e *exchange) makeExtBidResponse(adapterBids map[openrtb_ext.BidderName]*en
 			HttpCalls:       make(map[openrtb_ext.BidderName][]*openrtb_ext.ExtHttpCall),
 			ResolvedRequest: r.ResolvedBidRequest,
 		}
+		if stripped := strippedDeals(adapterBids); len(stripped) > 0 {
+			bidResponseExt.Debug.AdServer = &openrtb_ext.ExtResponseDebugAdServer{StrippedDeals: stripped}
+		}
 	}
 
 	var auctionTimestamp int64
@@ -1339,6 +1344,7 @@ func (e *exchange) makeBid(bids []*entities.PbsOrtbBid, auc *auction, returnCrea
 		}
 		bidExtPrebid := &openrtb_ext.ExtBidPrebid{
 			DealPriority:      bid.DealPriority,
+			Deal:              bid.Deal,
 			DealTierSatisfied: bid.DealTierSatisfied,
 			Events:            bid.BidEvents,
 			Targeting:         bid.BidTargets,
@@ -1489,7 +1495,7 @@ func listBiddersWithRequests(bidderRequests []BidderRequest) []openrtb_ext.Bidde
 	return liveAdapters
 }
 
-func buildStoredAuctionResponse(storedAuctionResponses map[string]json.RawMessage) (
+func buildStoredAuctionResponse(storedAuctionResponses map[string]json.RawMessage, adServer *openrtb_ext.ExtRequestPrebidAdServer) (
 	map[openrtb_ext.BidderName]*entities.PbsOrtbSeatBid,
 	*openrtb_ext.Fledge,
 	[]openrtb_ext.BidderName,
@@ -1513,7 +1519,13 @@ func buildStoredAuctionResponse(storedAuctionResponses map[string]json.RawMessag
 				if err != nil {
 					return nil, nil, nil, err
 				}
-				bidsToAdd = append(bidsToAdd, &entities.PbsOrtbBid{Bid: &seat.Bid[i], BidType: bidType})
+				// Stored responses skip currency conversion and bid adjustments, so the deal amounts stay as written.
+				deal, dealErr := trustedDeal(adServer, seat.Seat, seat.Seat, &seat.Bid[i], func(amount float64) (float64, error) { return amount, nil })
+				bidToAdd := &entities.PbsOrtbBid{Bid: &seat.Bid[i], BidType: bidType, Deal: deal}
+				if dealErr != nil {
+					bidToAdd.DealRemovedReason = dealErr.Error()
+				}
+				bidsToAdd = append(bidsToAdd, bidToAdd)
 			}
 
 			bidderName := openrtb_ext.BidderName(seat.Seat)

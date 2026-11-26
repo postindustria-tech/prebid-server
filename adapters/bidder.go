@@ -93,13 +93,14 @@ func NewBidderResponse() *BidderResponse {
 // TypedBid.BidMeta will become "response.seatbid[i].bid.ext.prebid.meta" in the final OpenRTB response.
 // TypedBid.BidType will become "response.seatbid[i].bid.ext.prebid.type" in the final OpenRTB response.
 // TypedBid.BidVideo will become "response.seatbid[i].bid.ext.prebid.video" in the final OpenRTB response.
-// TypedBid.DealPriority is optionally provided by adapters and used internally by the exchange to support deal targeted campaigns.
 // TypedBid.Seat new seat under which the bid should pe placed. Default is adapter name
 type TypedBid struct {
-	Bid          *openrtb2.Bid
-	BidMeta      *openrtb_ext.ExtBidPrebidMeta
-	BidType      openrtb_ext.BidType
-	BidVideo     *openrtb_ext.ExtBidPrebidVideo
+	Bid      *openrtb2.Bid
+	BidMeta  *openrtb_ext.ExtBidPrebidMeta
+	BidType  openrtb_ext.BidType
+	BidVideo *openrtb_ext.ExtBidPrebidVideo
+	// Deprecated: DealPriority feeds bid.ext.prebid.dealpriority, which is only compared against
+	// minDealTier for ad podding. Ad server adapters return deal priority in bid.ext.prebid.deal instead.
 	DealPriority int
 	Seat         openrtb_ext.BidderName
 }

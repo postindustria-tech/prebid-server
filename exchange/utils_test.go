@@ -2762,6 +2762,11 @@ func TestBuildRequestExtForBidder(t *testing.T) {
 			requestExt:   json.RawMessage(`{"prebid":{"aliases":{"foo":"pubmatic", "bar":"pubmatic"}}}`),
 			expectedJson: json.RawMessage(`{"prebid":{"aliases":{"foo":"pubmatic"}}}`),
 		},
+		{
+			name:         "Prebid - Ad Server Config Not Forwarded",
+			requestExt:   json.RawMessage(`{"prebid":{"integration":"a","as":{"ap":true,"apb":["foo"],"priority_offsets":{"foo":-2}}}}`),
+			expectedJson: json.RawMessage(`{"prebid":{"integration":"a"}}`),
+		},
 	}
 
 	for _, test := range testCases {
