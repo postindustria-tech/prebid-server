@@ -1,0 +1,10 @@
+{
+  "id": "dealsim-curl",
+  "site": {"page": "http://localhost:8000/static/pbjs.html"},
+  "imp": [
+    {"id": "sponsorship", "banner": {"format": [{"w": 300, "h": 250}]}, "ext": {"prebid": {"bidder": {"simadapter": {"placementId": 2}}}}},
+    {"id": "invalid", "banner": {"format": [{"w": 300, "h": 250}]}, "ext": {"prebid": {"bidder": {"simadapter": {"placementId": 6}}}}}
+  ],
+  "test": 1,
+  "ext": {"prebid": {"as": {"ap": true, "apb": ["simadapter"]}}}
+}

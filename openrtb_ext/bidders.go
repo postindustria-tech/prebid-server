@@ -241,6 +241,7 @@ var coreBidderNames []BidderName = []BidderName{
 	BidderShowheroes,
 	BidderSilverMob,
 	BidderSilverPush,
+	BidderSimAdapter,
 	BidderSmaato,
 	BidderSmartAdserver,
 	BidderSmartHub,
@@ -639,6 +640,7 @@ const (
 	BidderShowheroes        BidderName = "showheroes"
 	BidderSilverMob         BidderName = "silvermob"
 	BidderSilverPush        BidderName = "silverpush"
+	BidderSimAdapter        BidderName = "simadapter"
 	BidderSmaato            BidderName = "smaato"
 	BidderSmartAdserver     BidderName = "smartadserver"
 	BidderSmartHub          BidderName = "smarthub"

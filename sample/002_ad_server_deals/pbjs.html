@@ -1,0 +1,334 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>002_ad_server_deals</title>
+    <style>
+        :root {
+            --bg: #f5f6f8;
+            --card: #ffffff;
+            --text: #1d2330;
+            --muted: #667085;
+            --line: #e3e6eb;
+            --code: #f0f2f5;
+            --accent: #3b5bdb;
+            --ok: #1f7a4d;
+            --ok-bg: #e3f4ea;
+            --bad: #b42318;
+            --bad-bg: #fde8e6;
+            --neutral-bg: #eef0f3;
+        }
+        @media (prefers-color-scheme: dark) {
+            :root {
+                --bg: #14171c;
+                --card: #1d2128;
+                --text: #e6e8eb;
+                --muted: #9aa3b2;
+                --line: #2e333c;
+                --code: #262b33;
+                --accent: #8ea6ff;
+                --ok: #7fd6a4;
+                --ok-bg: #1d3328;
+                --bad: #ff9b91;
+                --bad-bg: #3a2220;
+                --neutral-bg: #2a2f37;
+            }
+        }
+        * {
+            box-sizing: border-box;
+        }
+        body {
+            margin: 0;
+            padding: 32px 16px;
+            background: var(--bg);
+            color: var(--text);
+            font: 15px/1.5 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+        }
+        main {
+            max-width: 1080px;
+            margin: 0 auto;
+        }
+        h1 {
+            margin: 0 0 4px;
+            font-size: 26px;
+        }
+        .subtitle {
+            margin: 0 0 24px;
+            color: var(--muted);
+        }
+        code {
+            padding: 1px 5px;
+            border-radius: 4px;
+            background: var(--code);
+            font: 13px ui-monospace, SFMono-Regular, Menlo, monospace;
+        }
+        .flow {
+            display: flex;
+            flex-wrap: wrap;
+            align-items: center;
+            gap: 8px;
+            margin-bottom: 16px;
+        }
+        .flow .step {
+            padding: 8px 14px;
+            border: 1px solid var(--line);
+            border-radius: 8px;
+            background: var(--card);
+            font-weight: 600;
+        }
+        .flow .step small {
+            display: block;
+            color: var(--muted);
+            font-weight: 400;
+        }
+        .flow .arrow {
+            color: var(--muted);
+        }
+        .panel {
+            margin-bottom: 24px;
+            padding: 16px 20px;
+            border: 1px solid var(--line);
+            border-radius: 10px;
+            background: var(--card);
+        }
+        .panel p {
+            margin: 0 0 8px;
+        }
+        .panel p:last-child {
+            margin-bottom: 0;
+        }
+        .grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+            gap: 16px;
+        }
+        .card {
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+            padding: 16px;
+            border: 1px solid var(--line);
+            border-radius: 10px;
+            background: var(--card);
+        }
+        .card header {
+            display: flex;
+            justify-content: space-between;
+            align-items: baseline;
+        }
+        .card h2 {
+            margin: 0;
+            font-size: 16px;
+        }
+        .card header span {
+            color: var(--muted);
+            font-size: 13px;
+        }
+        .ad {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 250px;
+            border: 1px dashed var(--line);
+            border-radius: 6px;
+            color: var(--muted);
+            overflow: hidden;
+        }
+        .ad iframe {
+            border: 0;
+        }
+        dl {
+            display: grid;
+            grid-template-columns: auto 1fr;
+            gap: 4px 12px;
+            margin: 0;
+            font-size: 14px;
+        }
+        dt {
+            color: var(--muted);
+        }
+        dd {
+            margin: 0;
+            overflow-wrap: anywhere;
+        }
+        .badges {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 6px;
+        }
+        .badge {
+            padding: 2px 10px;
+            border-radius: 999px;
+            background: var(--neutral-bg);
+            font-size: 12px;
+            font-weight: 600;
+        }
+        .badge.ok {
+            background: var(--ok-bg);
+            color: var(--ok);
+        }
+        .badge.bad {
+            background: var(--bad-bg);
+            color: var(--bad);
+        }
+        .badge.type {
+            color: var(--accent);
+        }
+    </style>
+    <!-- needs a release that sends ext.prebid.as and reads bid.ext.prebid.deal (prebid/Prebid.js#15816) -->
+    <script src="//cdn.jsdelivr.net/npm/prebid.js@11.53.0/dist/not-for-prod/prebid.js" defer></script>
+    <script defer>
+        // placementId tells dealsim which bid to return, see dealsim/main.go
+        var placements = {
+            1: 'open market',
+            2: 'sponsorship',
+            3: 'reservation',
+            4: 'non-reservation',
+            5: 'house',
+            6: 'invalid sponsorship'
+        };
+
+        var dealTypes = ['unknown', 'sponsorship', 'reservation', 'non-reservation', 'house'];
+
+        var adUnits = Object.keys(placements).map(function (id) {
+            return {
+                code: 'slot-' + id,
+                mediaTypes: {
+                    banner: {
+                        sizes: [[300, 250]]
+                    }
+                },
+                bids: [{
+                    bidder: 'simadapter',
+                    params: { placementId: Number(id) }
+                }]
+            };
+        });
+
+        function escapeHtml(value) {
+            return String(value).replace(/[&<>"]/g, function (c) {
+                return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c];
+            });
+        }
+
+        function badgesFor(bid) {
+            var deal = bid.meta.deal;
+            if (deal) {
+                return '<span class="badge type">' + escapeHtml(dealTypes[deal.type] || 'type ' + deal.type) + '</span>' +
+                    '<span class="badge ok">source: ' + escapeHtml(deal.source) + '</span>';
+            }
+            if (bid.dealId) {
+                return '<span class="badge bad">deal removed by Prebid Server</span>';
+            }
+            return '<span class="badge">no deal</span>';
+        }
+
+        function detailsFor(bid) {
+            var rows = [['bid CPM', bid.cpm.toFixed(2) + ' ' + bid.currency]];
+            if (bid.dealId) {
+                rows.push(['deal ID', bid.dealId]);
+            }
+            var deal = bid.meta.deal;
+            if (deal) {
+                if (deal.cpm !== undefined) rows.push(['deal cpm', deal.cpm]);
+                if (deal.priorityAdjustedCpm !== undefined) rows.push(['priority cpm', deal.priorityAdjustedCpm]);
+                if (deal.onSchedule !== undefined) rows.push(['on schedule', deal.onSchedule]);
+                if (deal.priority !== undefined) rows.push(['priority', deal.priority]);
+            }
+            return '<dl>' + rows.map(function (row) {
+                return '<dt>' + row[0] + '</dt><dd>' + escapeHtml(row[1]) + '</dd>';
+            }).join('') + '</dl>';
+        }
+
+        function showResults() {
+            var responses = pbjs.getBidResponses();
+            document.getElementById('cards').innerHTML = Object.keys(placements).map(function (id) {
+                var code = 'slot-' + id;
+                var bid = ((responses[code] || {}).bids || [])[0];
+                return '<section class="card" id="' + code + '">' +
+                    '<header><h2>' + code + '</h2><span>placementId ' + id + ': ' + placements[id] + '</span></header>' +
+                    '<div class="ad">' + (bid ? '' : 'no bid') + '</div>' +
+                    (bid ? '<div class="badges">' + badgesFor(bid) + '</div>' + detailsFor(bid) : '') +
+                    '</section>';
+            }).join('');
+            Object.keys(placements).forEach(function (id) {
+                var bid = ((responses['slot-' + id] || {}).bids || [])[0];
+                if (bid) {
+                    renderOne(bid);
+                }
+            });
+        }
+
+        function renderOne(bid) {
+            var slot = document.querySelector('#' + bid.adUnitCode + ' .ad');
+            var iframe = document.createElement('iframe');
+            iframe.scrolling = 'no';
+            iframe.width = '300';
+            iframe.height = '250';
+            iframe.title = '3rd party ad content';
+            slot.appendChild(iframe);
+            pbjs.renderAd(iframe.contentWindow.document, bid.adId);
+        }
+    </script>
+    <script defer>
+        var pbjs = pbjs || {};
+        pbjs.que = pbjs.que || [];
+
+        pbjs.que.push(function () {
+            pbjs.setConfig({
+                // Prebid.js sends ext.prebid.debug only with the global debug flag; without it
+                // Prebid Server leaves out ext.debug, including ext.debug.as.stripped
+                debug: true,
+                s2sConfig: [{
+                    accountId: '1',
+                    adapter: 'prebidServer',
+                    enabled: true,
+                    bidders: ['simadapter'],
+                    // trust the deal metadata of simadapter: Prebid.js sends ext.prebid.as {ap: true, apb: ['simadapter']}
+                    allowPriorityBids: ['simadapter'],
+                    endpoint: {
+                        noP1Consent: 'http://localhost:8000/openrtb2/auction',
+                        p1Consent: 'http://localhost:8000/openrtb2/auction'
+                    },
+                    timeout: 1000
+                }]
+            });
+
+            pbjs.addAdUnits(adUnits);
+            pbjs.requestBids({
+                bidsBackHandler: showResults
+            });
+        });
+    </script>
+</head>
+
+<body>
+    <main>
+        <h1>Ad server deals</h1>
+        <p class="subtitle">Deal metadata from an ad server adapter: <code>seatbid[].bid[].ext.prebid.deal</code></p>
+
+        <div class="flow">
+            <div class="step">Prebid.js<small>sends ext.prebid.as</small></div>
+            <span class="arrow">&rarr;</span>
+            <div class="step">Prebid Server<small>checks the deals</small></div>
+            <span class="arrow">&rarr;</span>
+            <div class="step">simadapter<small>passthrough adapter</small></div>
+            <span class="arrow">&rarr;</span>
+            <div class="step">dealsim<small>fake bidder, own container</small></div>
+        </div>
+
+        <div class="panel">
+            <p>Prebid.js sends <code>ext.prebid.as: {"ap": true, "apb": ["simadapter"]}</code> because of
+                <code>allowPriorityBids: ['simadapter']</code>. Prebid Server keeps valid deals from simadapter and sets
+                <code>source: "adserver"</code>.</p>
+            <p>The deal on slot-6 has no <code>cpm</code>, so Prebid Server removes it and keeps the bid. To see the
+                reason, open the developer tools, select <strong>Network</strong>, click the <code>auction</code>
+                request and find <code>ext.debug.as.stripped</code> in the response.</p>
+            <p>Delete <code>allowPriorityBids</code> from this page to see Prebid Server remove every deal.</p>
+        </div>
+
+        <div class="grid" id="cards"></div>
+    </main>
+</body>
+</html>

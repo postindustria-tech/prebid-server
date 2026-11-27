@@ -223,6 +223,7 @@ import (
 	"github.com/prebid/prebid-server/v4/adapters/showheroes"
 	"github.com/prebid/prebid-server/v4/adapters/silvermob"
 	"github.com/prebid/prebid-server/v4/adapters/silverpush"
+	"github.com/prebid/prebid-server/v4/adapters/simadapter"
 	"github.com/prebid/prebid-server/v4/adapters/smaato"
 	"github.com/prebid/prebid-server/v4/adapters/smartadserver"
 	"github.com/prebid/prebid-server/v4/adapters/smarthub"
@@ -517,6 +518,7 @@ func newAdapterBuilders() map[openrtb_ext.BidderName]adapters.Builder {
 		openrtb_ext.BidderShowheroes:        showheroes.Builder,
 		openrtb_ext.BidderSilverMob:         silvermob.Builder,
 		openrtb_ext.BidderSilverPush:        silverpush.Builder,
+		openrtb_ext.BidderSimAdapter:        simadapter.Builder,
 		openrtb_ext.BidderSmaato:            smaato.Builder,
 		openrtb_ext.BidderSmartAdserver:     smartadserver.Builder,
 		openrtb_ext.BidderSmartHub:          smarthub.Builder,
