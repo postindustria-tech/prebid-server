@@ -1,0 +1,167 @@
+{
+  "mockBidRequest": {
+    "id": "test-request-id",
+    "imp": [
+      {
+        "id": "imp-v",
+        "video": {
+          "mimes": [
+            "video/mp4"
+          ],
+          "w": 640,
+          "h": 480
+        },
+        "ext": {
+          "bidder": {
+            "placementId": 1
+          }
+        }
+      },
+      {
+        "id": "imp-n",
+        "native": {
+          "request": "{\"ver\":\"1.2\",\"assets\":[]}"
+        },
+        "ext": {
+          "bidder": {
+            "placementId": 1
+          }
+        }
+      }
+    ],
+    "site": {
+      "page": "http://example.com"
+    }
+  },
+  "httpCalls": [
+    {
+      "expectedRequest": {
+        "uri": "http://localhost:8080/bid",
+        "headers": {
+          "Content-Type": [
+            "application/json;charset=utf-8"
+          ]
+        },
+        "body": {
+          "id": "test-request-id",
+          "imp": [
+            {
+              "id": "imp-v",
+              "video": {
+                "mimes": [
+                  "video/mp4"
+                ],
+                "w": 640,
+                "h": 480
+              },
+              "ext": {
+                "bidder": {
+                  "placementId": 1
+                }
+              }
+            },
+            {
+              "id": "imp-n",
+              "native": {
+                "request": "{\"ver\":\"1.2\",\"assets\":[]}"
+              },
+              "ext": {
+                "bidder": {
+                  "placementId": 1
+                }
+              }
+            }
+          ],
+          "site": {
+            "page": "http://example.com"
+          }
+        },
+        "impIDs": [
+          "imp-v",
+          "imp-n"
+        ]
+      },
+      "mockResponse": {
+        "status": 200,
+        "body": {
+          "id": "test-request-id",
+          "cur": "EUR",
+          "seatbid": [
+            {
+              "bid": [
+                {
+                  "id": "bid-v",
+                  "impid": "imp-v",
+                  "price": 2,
+                  "adm": "<VAST/>",
+                  "crid": "crid-v",
+                  "mtype": 2
+                },
+                {
+                  "id": "bid-a",
+                  "impid": "imp-v",
+                  "price": 1,
+                  "adm": "<VAST/>",
+                  "crid": "crid-a",
+                  "mtype": 3
+                }
+              ]
+            },
+            {
+              "bid": [
+                {
+                  "id": "bid-n",
+                  "impid": "imp-n",
+                  "price": 1.5,
+                  "adm": "{}",
+                  "crid": "crid-n",
+                  "mtype": 4
+                }
+              ]
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "expectedBidResponses": [
+    {
+      "currency": "EUR",
+      "bids": [
+        {
+          "bid": {
+            "id": "bid-v",
+            "impid": "imp-v",
+            "price": 2,
+            "adm": "<VAST/>",
+            "crid": "crid-v",
+            "mtype": 2
+          },
+          "type": "video"
+        },
+        {
+          "bid": {
+            "id": "bid-a",
+            "impid": "imp-v",
+            "price": 1,
+            "adm": "<VAST/>",
+            "crid": "crid-a",
+            "mtype": 3
+          },
+          "type": "audio"
+        },
+        {
+          "bid": {
+            "id": "bid-n",
+            "impid": "imp-n",
+            "price": 1.5,
+            "adm": "{}",
+            "crid": "crid-n",
+            "mtype": 4
+          },
+          "type": "native"
+        }
+      ]
+    }
+  ]
+}

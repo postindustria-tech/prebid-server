@@ -1,0 +1,18 @@
+# Passthrough adapter for local demos and end-to-end tests, see sample/002_ad_server_deals.
+# Enable it and set its endpoint in the host config; never enable it in production.
+disabled: true
+maintainer:
+  email: "oss@postindustria.com"
+capabilities:
+  app:
+    mediaTypes:
+      - banner
+      - video
+      - audio
+      - native
+  site:
+    mediaTypes:
+      - banner
+      - video
+      - audio
+      - native

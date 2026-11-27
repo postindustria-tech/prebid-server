@@ -1,0 +1,15 @@
+port: 8000 # main auction server port
+admin_port: 6060 # admin server listening port
+
+external_url: localhost # host url of all 2 servers above
+status_response: "ok" # default response string for /status endpoint
+
+gdpr:
+  default_value: "0" # disable gdpr, explicitly specifying a default value is a requirement in prebid server config
+
+# simadapter sends the request and returns the bids unchanged. It is disabled by default; here it
+# calls dealsim, the fake bidder from docker-compose.yml.
+adapters:
+  simadapter:
+    disabled: false
+    endpoint: "http://dealsim:8080/bid"

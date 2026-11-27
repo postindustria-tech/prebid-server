@@ -1,0 +1,116 @@
+{
+  "mockBidRequest": {
+    "id": "test-request-id",
+    "imp": [
+      {
+        "id": "imp-1",
+        "banner": {
+          "format": [
+            {
+              "w": 300,
+              "h": 250
+            }
+          ]
+        },
+        "ext": {
+          "bidder": {
+            "placementId": 1
+          }
+        }
+      }
+    ],
+    "site": {
+      "page": "http://example.com"
+    }
+  },
+  "httpCalls": [
+    {
+      "expectedRequest": {
+        "uri": "http://localhost:8080/bid",
+        "headers": {
+          "Content-Type": [
+            "application/json;charset=utf-8"
+          ]
+        },
+        "body": {
+          "id": "test-request-id",
+          "imp": [
+            {
+              "id": "imp-1",
+              "banner": {
+                "format": [
+                  {
+                    "w": 300,
+                    "h": 250
+                  }
+                ]
+              },
+              "ext": {
+                "bidder": {
+                  "placementId": 1
+                }
+              }
+            }
+          ],
+          "site": {
+            "page": "http://example.com"
+          }
+        },
+        "impIDs": [
+          "imp-1"
+        ]
+      },
+      "mockResponse": {
+        "status": 200,
+        "body": {
+          "id": "test-request-id",
+          "seatbid": [
+            {
+              "bid": [
+                {
+                  "id": "bid-bad",
+                  "impid": "imp-1",
+                  "price": 1,
+                  "adm": "<div>ad</div>",
+                  "crid": "crid-bad"
+                },
+                {
+                  "id": "bid-ok",
+                  "impid": "imp-1",
+                  "price": 1,
+                  "adm": "<div>ad</div>",
+                  "crid": "crid-ok",
+                  "mtype": 1
+                }
+              ]
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "expectedBidResponses": [
+    {
+      "currency": "",
+      "bids": [
+        {
+          "bid": {
+            "id": "bid-ok",
+            "impid": "imp-1",
+            "price": 1,
+            "adm": "<div>ad</div>",
+            "crid": "crid-ok",
+            "mtype": 1
+          },
+          "type": "banner"
+        }
+      ]
+    }
+  ],
+  "expectedMakeBidsErrors": [
+    {
+      "value": "unsupported mtype 0 for bid bid-bad",
+      "comparison": "literal"
+    }
+  ]
+}
